@@ -1,12 +1,24 @@
 import Link from "next/link";
 import { Header } from "@/components/Header";
 import { ProductCard } from "@/components/ProductCard";
-import { mockProducts } from "@/lib/mock-data";
+import { createClient } from "@/lib/supabase/server";
+import { PRODUCT_SELECT, normalizeProduct } from "@/lib/products";
 
-export default function HomePage() {
-  const highlights = mockProducts
-    .filter((p) => p.status === "available")
-    .slice(0, 4);
+export default async function HomePage() {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("products")
+    .select(PRODUCT_SELECT)
+    .eq("status", "available")
+    .order("created_at", { ascending: false })
+    .limit(4);
+
+  if (error) {
+    console.error("Erro ao carregar novidades:", error);
+  }
+
+  const highlights = (data ?? []).map(normalizeProduct);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -37,11 +49,17 @@ export default function HomePage() {
           <h2 className="text-xl font-bold text-text mb-6 text-center">
             Novidades
           </h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {highlights.map((product) => (
-              <ProductCard key={product.id} product={product} />
-            ))}
-          </div>
+          {highlights.length > 0 ? (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {highlights.map((product) => (
+                <ProductCard key={product.id} product={product} />
+              ))}
+            </div>
+          ) : (
+            <p className="text-center text-text-muted">
+              Novas peças chegando em breve 💕
+            </p>
+          )}
           <div className="text-center mt-8">
             <Link
               href="/produtos"
