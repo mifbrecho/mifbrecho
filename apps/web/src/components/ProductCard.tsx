@@ -2,55 +2,46 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import { usePathname, useRouter } from "next/navigation";
 import { Heart } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import type { Product } from "@mifre/shared";
 import { formatPrice } from "@/lib/utils";
+import { useFavorites } from "@/store/favorites";
 
 interface ProductCardProps {
   product: Product;
 }
 
-const FAVORITES_KEY = "mifbrecho-favorites";
-
 export function ProductCard({ product }: ProductCardProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+
   const imageUrl =
     product.images?.find((i) => i.is_primary)?.url ||
     product.images?.[0]?.url ||
     "https://placehold.co/400x500/FCE4EC/E91E63?text=MIF+BRECHO";
 
-  const [isFavorite, setIsFavorite] = useState(false);
+  const isFavorite = useFavorites((s) => s.ids.includes(product.id));
+  const loadFavorites = useFavorites((s) => s.load);
+  const toggle = useFavorites((s) => s.toggle);
 
   useEffect(() => {
-    const saved = localStorage.getItem(FAVORITES_KEY);
+    loadFavorites();
+  }, [loadFavorites]);
 
-    if (saved) {
-      const favorites: string[] = JSON.parse(saved);
-      setIsFavorite(favorites.includes(product.id));
-    }
-  }, [product.id]);
-
-  function toggleFavorite(event: React.MouseEvent<HTMLButtonElement>) {
+  async function toggleFavorite(event: React.MouseEvent<HTMLButtonElement>) {
     event.preventDefault();
     event.stopPropagation();
 
-    const saved = localStorage.getItem(FAVORITES_KEY);
-    const favorites: string[] = saved ? JSON.parse(saved) : [];
+    const result = await toggle(product.id);
 
-    let updatedFavorites: string[];
-
-    if (favorites.includes(product.id)) {
-      updatedFavorites = favorites.filter((id) => id !== product.id);
-      setIsFavorite(false);
-    } else {
-      updatedFavorites = [...favorites, product.id];
-      setIsFavorite(true);
+    if (result === "login") {
+      window.alert("Entre ou crie sua conta para adicionar aos favoritos.");
+      router.push(`/login?next=${encodeURIComponent(pathname)}`);
+    } else if (result === "error") {
+      window.alert("Não foi possível salvar o favorito. Tente de novo.");
     }
-
-    localStorage.setItem(
-      FAVORITES_KEY,
-      JSON.stringify(updatedFavorites)
-    );
   }
 
   return (
@@ -80,9 +71,7 @@ export function ProductCard({ product }: ProductCardProps) {
         >
           <Heart
             className={`h-5 w-5 ${
-              isFavorite
-                ? "fill-primary text-primary"
-                : "text-primary"
+              isFavorite ? "fill-primary text-primary" : "text-primary"
             }`}
           />
         </button>
