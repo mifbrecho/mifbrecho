@@ -27,7 +27,9 @@ export default function CadastroPage() {
       password,
       options: {
         data: {
-          name,
+          // full_name é o que o banco usa para criar o perfil
+          full_name: name.trim(),
+          name: name.trim(),
         },
       },
     });
@@ -135,9 +137,9 @@ export default function CadastroPage() {
                   type="password"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
-                  placeholder="Crie uma senha"
+                  placeholder="Crie uma senha (mínimo 8 caracteres)"
                   required
-                  minLength={6}
+                  minLength={8}
                   className="w-full bg-transparent outline-none"
                 />
               </div>
