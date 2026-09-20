@@ -1,9 +1,33 @@
 import Link from "next/link";
 import { Header } from "@/components/Header";
 import { ProductCard } from "@/components/ProductCard";
-import { mockCategories, mockProducts } from "@/lib/mock-data";
+import { createClient } from "@/lib/supabase/server";
+import { PRODUCT_SELECT, normalizeProduct } from "@/lib/products";
+import type { Category } from "@mifre/shared";
 
-export default function CategoriasPage() {
+export default async function CategoriasPage() {
+  const supabase = await createClient();
+
+  const [categoriesResult, productsResult] = await Promise.all([
+    supabase.from("categories").select("*").order("sort_order"),
+    supabase
+      .from("products")
+      .select(PRODUCT_SELECT)
+      .eq("status", "available")
+      .order("created_at", { ascending: false }),
+  ]);
+
+  if (categoriesResult.error) {
+    console.error("Erro ao carregar categorias:", categoriesResult.error);
+  }
+
+  if (productsResult.error) {
+    console.error("Erro ao carregar produtos:", productsResult.error);
+  }
+
+  const categories = (categoriesResult.data ?? []) as Category[];
+  const products = (productsResult.data ?? []).map(normalizeProduct);
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
@@ -24,7 +48,7 @@ export default function CategoriasPage() {
         </div>
 
         <div className="mb-10 flex flex-wrap gap-3">
-          {mockCategories.map((category) => (
+          {categories.map((category) => (
             <a
               key={category.id}
               href={`#${category.slug}`}
@@ -36,8 +60,8 @@ export default function CategoriasPage() {
         </div>
 
         <div className="space-y-12">
-          {mockCategories.map((category) => {
-            const categoryProducts = mockProducts.filter(
+          {categories.map((category) => {
+            const categoryProducts = products.filter(
               (product) =>
                 product.category_id === category.id &&
                 product.status === "available"
