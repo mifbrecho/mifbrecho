@@ -41,7 +41,7 @@ export default function CadastroPage() {
     }
 
     setMessage(
-      "Cadastro realizado! Verifique seu e-mail para confirmar sua conta."
+      "Cadastro realizado! Enviamos um e-mail para confirmar sua conta. Se não encontrar na caixa de entrada, olhe também o spam."
     );
 
     setLoading(false);
