@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Heart } from "lucide-react";
 import { useEffect, useState } from "react";
-import type { Product } from "@mifare/shared";
+import type { Product } from "@mifre/shared";
 import { formatPrice } from "@/lib/utils";
 
 interface ProductCardProps {
