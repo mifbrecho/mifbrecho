@@ -1,0 +1,34 @@
+{
+  "name": "@mifre/web",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.1",
+    "@supabase/ssr": "^0.12.7",
+    "mercadopago": "^2.3.0",
+    "next": "^15.5.18",
+    "react": "^19.0.6",
+    "react-dom": "^19.0.6",
+    "zustand": "^5.0.3",
+    "lucide-react": "^0.475.0",
+    "clsx": "^2.1.1",
+    "tailwind-merge": "^3.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.4",
+    "@types/react": "^19.0.8",
+    "@types/react-dom": "^19.0.3",
+    "typescript": "^5.7.3",
+    "tailwindcss": "^4.0.6",
+    "@tailwindcss/postcss": "^4.0.6",
+    "postcss": "^8.5.2",
+    "eslint": "^9.20.1",
+    "eslint-config-next": "^15.5.18"
+  }
+}

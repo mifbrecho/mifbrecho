@@ -1,0 +1,28 @@
+{
+  "expo": {
+    "name": "MIF BRECHO",
+    "slug": "mifre-brecho",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "mifrebrecho",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FFF5F8"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.mifre.brecho"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#E91E63"
+      },
+      "package": "com.mifre.brecho"
+    },
+    "plugins": ["expo-router"]
+  }
+}
