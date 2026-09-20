@@ -1,16 +1,7 @@
-use client";
+"use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
-import {
-  ImagePlus,
-  Pencil,
-  Eye,
-  EyeOff,
-  Trash2,
-  Loader2,
-  X,
-} from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { formatPrice } from "@/lib/utils";
 
@@ -187,7 +178,7 @@ export default function AdminProdutosPage() {
     }
   }
 
-  async function handleSave(e: React.FormEvent) {
+  async function handleSave(e: FormEvent) {
     e.preventDefault();
 
     setSaving(true);
@@ -387,7 +378,7 @@ export default function AdminProdutosPage() {
                 onClick={resetForm}
                 className="text-text-muted"
               >
-                <X size={20} />
+                <span className="text-lg leading-none">×</span>
               </button>
             </div>
 
@@ -534,10 +525,7 @@ export default function AdminProdutosPage() {
                   />
                 ) : (
                   <>
-                    <ImagePlus
-                      size={34}
-                      className="mb-2 text-primary"
-                    />
+                    <span className="mb-2 text-3xl text-primary">📷</span>
 
                     <span className="text-sm font-medium text-text">
                       Clique para escolher uma foto
@@ -585,7 +573,7 @@ export default function AdminProdutosPage() {
               className="w-full bg-primary text-white font-semibold py-3 rounded-full disabled:opacity-60 flex items-center justify-center gap-2"
             >
               {saving && (
-                <Loader2 size={18} className="animate-spin" />
+                <span className="animate-pulse">⏳</span>
               )}
 
               {saving
@@ -599,10 +587,7 @@ export default function AdminProdutosPage() {
 
         {loading ? (
           <div className="flex justify-center py-16">
-            <Loader2
-              size={30}
-              className="animate-spin text-primary"
-            />
+            <span className="text-primary text-2xl animate-pulse">⏳</span>
           </div>
         ) : products.length === 0 ? (
           <div className="rounded-2xl border border-primary-light bg-white p-8 text-center">
@@ -662,7 +647,7 @@ export default function AdminProdutosPage() {
                         title="Editar"
                         className="h-9 w-9 rounded-full border border-primary-light flex items-center justify-center text-primary hover:bg-[#fff7f2] disabled:opacity-50"
                       >
-                        <Pencil size={16} />
+                        <span className="text-sm">✏️</span>
                       </button>
 
                       <button
@@ -673,14 +658,11 @@ export default function AdminProdutosPage() {
                         className="h-9 w-9 rounded-full border border-primary-light flex items-center justify-center text-primary hover:bg-[#fff7f2] disabled:opacity-50"
                       >
                         {busy ? (
-                          <Loader2
-                            size={16}
-                            className="animate-spin"
-                          />
+                          <span className="animate-pulse">⏳</span>
                         ) : available ? (
-                          <EyeOff size={16} />
+                          <span className="text-sm">🙈</span>
                         ) : (
-                          <Eye size={16} />
+                          <span className="text-sm">👁️</span>
                         )}
                       </button>
 
@@ -691,7 +673,7 @@ export default function AdminProdutosPage() {
                         title="Excluir"
                         className="h-9 w-9 rounded-full border border-red-200 flex items-center justify-center text-red-500 hover:bg-red-50 disabled:opacity-50"
                       >
-                        <Trash2 size={16} />
+                        <span className="text-sm">🗑️</span>
                       </button>
                     </div>
                   </div>
