@@ -152,7 +152,7 @@ export default function ContaPage() {
 
           <div className="mt-6 grid gap-4 sm:grid-cols-2">
             <Link
-              href="/checkout"
+              href="/pedidos"
               className="flex items-center gap-4 rounded-2xl border border-[#eadfd8] p-5 transition hover:bg-[#fff7f2]"
             >
               <ShoppingBag className="text-[#8b6757]" />
