@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { User, ShoppingBag, Heart, ArrowLeft } from "lucide-react";
+import { User, ShoppingBag, Heart, ArrowLeft, LogIn, UserPlus } from "lucide-react";
 
 export default function ContaPage() {
   return (
@@ -39,20 +39,59 @@ export default function ContaPage() {
             </h1>
 
             <p className="mt-2 text-[#806f67]">
-              Acompanhe seus pedidos e suas compras na MIF BRECHO.
+              Entre na sua conta ou crie seu cadastro para acompanhar seus
+              pedidos e compras na MIF BRECHO.
             </p>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <Link
+              href="/login"
+              className="flex items-center gap-4 rounded-2xl border border-[#eadfd8] p-5 transition hover:bg-[#fff7f2]"
+            >
+              <LogIn className="text-[#8b6757]" />
+
+              <div>
+                <h2 className="font-semibold text-[#3d302b]">
+                  Entrar na minha conta
+                </h2>
+
+                <p className="text-sm text-[#806f67]">
+                  Já tenho cadastro
+                </p>
+              </div>
+            </Link>
+
+            <Link
+              href="/cadastro"
+              className="flex items-center gap-4 rounded-2xl border border-[#eadfd8] p-5 transition hover:bg-[#fff7f2]"
+            >
+              <UserPlus className="text-[#8b6757]" />
+
+              <div>
+                <h2 className="font-semibold text-[#3d302b]">
+                  Criar minha conta
+                </h2>
+
+                <p className="text-sm text-[#806f67]">
+                  Ainda não tenho cadastro
+                </p>
+              </div>
+            </Link>
+          </div>
+
+          <div className="mt-6 grid gap-4 sm:grid-cols-2">
+            <Link
               href="/checkout"
               className="flex items-center gap-4 rounded-2xl border border-[#eadfd8] p-5 transition hover:bg-[#fff7f2]"
             >
               <ShoppingBag className="text-[#8b6757]" />
+
               <div>
                 <h2 className="font-semibold text-[#3d302b]">
                   Minhas compras
                 </h2>
+
                 <p className="text-sm text-[#806f67]">
                   Acompanhe seus pedidos
                 </p>
@@ -60,16 +99,18 @@ export default function ContaPage() {
             </Link>
 
             <Link
-              href="/"
+              href="/favoritos"
               className="flex items-center gap-4 rounded-2xl border border-[#eadfd8] p-5 transition hover:bg-[#fff7f2]"
             >
               <Heart className="text-[#8b6757]" />
+
               <div>
                 <h2 className="font-semibold text-[#3d302b]">
-                  Continuar comprando
+                  Meus favoritos
                 </h2>
+
                 <p className="text-sm text-[#806f67]">
-                  Ver peças disponíveis
+                  Ver minhas peças favoritas
                 </p>
               </div>
             </Link>
