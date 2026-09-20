@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Header } from "@/components/Header";
 import { ProductCard } from "@/components/ProductCard";
 import { createClient } from "@/lib/supabase/client";
+import { PRODUCT_SELECT, normalizeProduct } from "@/lib/products";
 import type { Product } from "@mifre/shared";
 
 export default function ProdutosPage() {
@@ -16,7 +17,7 @@ export default function ProdutosPage() {
 
       const { data, error } = await supabase
         .from("products")
-        .select("*")
+        .select(PRODUCT_SELECT)
         .eq("status", "available")
         .order("created_at", { ascending: false });
 
@@ -24,7 +25,7 @@ export default function ProdutosPage() {
         console.error("Erro ao carregar produtos:", error);
         setProducts([]);
       } else {
-        setProducts(data as Product[]);
+        setProducts((data ?? []).map(normalizeProduct));
       }
 
       setLoading(false);
