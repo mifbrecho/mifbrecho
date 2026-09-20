@@ -30,7 +30,18 @@ export default function LoginPage() {
       return;
     }
 
-    window.location.href = "/conta";
+    // Volta para onde a pessoa queria ir (ex.: /admin).
+    // Só aceita caminhos do próprio site, nunca links externos.
+    const next = new URLSearchParams(window.location.search).get("next");
+    const safeNext =
+      next &&
+      next.startsWith("/") &&
+      !next.startsWith("//") &&
+      !next.includes("\\")
+        ? next
+        : "/conta";
+
+    window.location.href = safeNext;
   }
 
   return (
