@@ -1,21 +1,76 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Header } from "@/components/Header";
-import { useCart } from "@/store/cart";
+import { useCart, type CartRefreshResult } from "@/store/cart";
 import { formatPrice } from "@/lib/utils";
 import { Trash2, Plus, Minus, ShoppingBag } from "lucide-react";
 
+function buildNotices(result: CartRefreshResult): string[] {
+  const notices: string[] = [];
+
+  if (result.removed.length > 0) {
+    notices.push(
+      `Saiu do carrinho porque não está mais disponível: ${result.removed.join(", ")}.`
+    );
+  }
+
+  if (result.adjusted.length > 0) {
+    notices.push(
+      `Quantidade ajustada ao estoque: ${result.adjusted.join(", ")}.`
+    );
+  }
+
+  if (result.priceChanged.length > 0) {
+    notices.push(`O preço mudou: ${result.priceChanged.join(", ")}.`);
+  }
+
+  return notices;
+}
+
 export default function CarrinhoPage() {
-  const { items, removeItem, updateQuantity, totalAmount, clear } = useCart();
+  const { items, removeItem, updateQuantity, totalAmount, clear, refresh } =
+    useCart();
   const total = totalAmount();
+
+  const [checking, setChecking] = useState(true);
+  const [notices, setNotices] = useState<string[]>([]);
+
+  // Ao abrir o carrinho, confere com o banco o que ainda está à venda
+  useEffect(() => {
+    let cancelled = false;
+
+    refresh()
+      .then((result) => {
+        if (!cancelled) setNotices(buildNotices(result));
+      })
+      .finally(() => {
+        if (!cancelled) setChecking(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const noticeBox =
+    notices.length > 0 ? (
+      <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 space-y-1">
+        {notices.map((notice) => (
+          <p key={notice}>{notice}</p>
+        ))}
+      </div>
+    ) : null;
 
   if (items.length === 0) {
     return (
       <div className="min-h-screen bg-background">
         <Header />
         <div className="flex flex-col items-center justify-center py-24 px-4">
+          <div className="w-full max-w-md">{noticeBox}</div>
           <ShoppingBag className="w-16 h-16 text-primary-light mb-4" />
           <h1 className="text-xl font-bold text-text mb-2">Carrinho vazio</h1>
           <p className="text-text-muted text-sm mb-6 text-center">
@@ -47,12 +102,16 @@ export default function CarrinhoPage() {
           </button>
         </div>
 
+        {noticeBox}
+
         <div className="space-y-4 mb-8">
           {items.map(({ product, quantity }) => {
             const imageUrl =
               product.images?.find((i) => i.is_primary)?.url ||
               product.images?.[0]?.url ||
               "https://placehold.co/200x250/FCE4EC/E91E63?text=MIF+BRECHO";
+
+            const canChooseQuantity = product.stock > 1;
 
             return (
               <div
@@ -83,23 +142,32 @@ export default function CarrinhoPage() {
                   </p>
 
                   <div className="flex items-center justify-between mt-3">
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => updateQuantity(product.id, quantity - 1)}
-                        className="w-8 h-8 rounded-full border border-primary-light flex items-center justify-center text-primary hover:bg-secondary"
-                      >
-                        <Minus className="w-3.5 h-3.5" />
-                      </button>
-                      <span className="w-6 text-center font-medium text-sm">
-                        {quantity}
+                    {canChooseQuantity ? (
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => updateQuantity(product.id, quantity - 1)}
+                          className="w-8 h-8 rounded-full border border-primary-light flex items-center justify-center text-primary hover:bg-secondary"
+                          aria-label="Diminuir quantidade"
+                        >
+                          <Minus className="w-3.5 h-3.5" />
+                        </button>
+                        <span className="w-6 text-center font-medium text-sm">
+                          {quantity}
+                        </span>
+                        <button
+                          onClick={() => updateQuantity(product.id, quantity + 1)}
+                          disabled={quantity >= product.stock}
+                          className="w-8 h-8 rounded-full border border-primary-light flex items-center justify-center text-primary hover:bg-secondary disabled:opacity-40 disabled:cursor-not-allowed"
+                          aria-label="Aumentar quantidade"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-text-muted">
+                        Peça única · 1 unidade
                       </span>
-                      <button
-                        onClick={() => updateQuantity(product.id, quantity + 1)}
-                        className="w-8 h-8 rounded-full border border-primary-light flex items-center justify-center text-primary hover:bg-secondary"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+                    )}
 
                     <button
                       onClick={() => removeItem(product.id)}
@@ -132,12 +200,18 @@ export default function CarrinhoPage() {
             </span>
           </div>
 
-          <Link
-            href="/checkout"
-            className="mt-5 block w-full text-center bg-primary text-white font-semibold py-4 rounded-full hover:bg-primary-dark transition shadow-lg shadow-primary/25"
-          >
-            Finalizar compra
-          </Link>
+          {checking ? (
+            <div className="mt-5 block w-full text-center bg-primary/60 text-white font-semibold py-4 rounded-full cursor-wait">
+              Conferindo disponibilidade...
+            </div>
+          ) : (
+            <Link
+              href="/checkout"
+              className="mt-5 block w-full text-center bg-primary text-white font-semibold py-4 rounded-full hover:bg-primary-dark transition shadow-lg shadow-primary/25"
+            >
+              Finalizar compra
+            </Link>
+          )}
         </div>
       </main>
     </div>
