@@ -3,13 +3,15 @@
 import { use, useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { ShoppingBag, ArrowLeft } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { ShoppingBag, ArrowLeft, Heart } from "lucide-react";
 import type { Product } from "@mifre/shared";
 import { Header } from "@/components/Header";
 import { createClient } from "@/lib/supabase/client";
 import { PRODUCT_SELECT, normalizeProduct } from "@/lib/products";
 import { formatPrice } from "@/lib/utils";
 import { useCart } from "@/store/cart";
+import { useFavorites } from "@/store/favorites";
 
 export default function ProdutoPage({
   params,
@@ -18,10 +20,23 @@ export default function ProdutoPage({
 }) {
   const { id } = use(params);
   const addItem = useCart((s) => s.addItem);
+  const inCart = useCart(
+    (s) => s.items.find((i) => i.product.id === id)?.quantity ?? 0
+  );
+
+  const router = useRouter();
+  const pathname = usePathname();
+  const isFavorite = useFavorites((s) => s.ids.includes(id));
+  const loadFavorites = useFavorites((s) => s.load);
+  const toggleFavorite = useFavorites((s) => s.toggle);
 
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const [added, setAdded] = useState(false);
+
+  useEffect(() => {
+    loadFavorites();
+  }, [loadFavorites]);
 
   useEffect(() => {
     let cancelled = false;
@@ -86,10 +101,28 @@ export default function ProdutoPage({
     "https://placehold.co/600x800/FCE4EC/E91E63?text=MIF+BRECHO";
 
   function handleAddToCart() {
-    addItem(product!);
-    setAdded(true);
-    setTimeout(() => setAdded(false), 2000);
+    // O carrinho não deixa passar do estoque (peça única = 1 unidade)
+    const result = addItem(product!);
+
+    if (result === "added") {
+      setAdded(true);
+      setTimeout(() => setAdded(false), 2000);
+    }
   }
+
+  async function handleToggleFavorite() {
+    const result = await toggleFavorite(product!.id);
+
+    if (result === "login") {
+      window.alert("Entre ou crie sua conta para adicionar aos favoritos.");
+      router.push(`/login?next=${encodeURIComponent(pathname)}`);
+    } else if (result === "error") {
+      window.alert("Não foi possível salvar o favorito. Tente de novo.");
+    }
+  }
+
+  const soldOut = product.stock < 1;
+  const alreadyInCart = !soldOut && inCart >= product.stock;
 
   return (
     <div className="min-h-screen bg-background">
@@ -116,6 +149,24 @@ export default function ProdutoPage({
               unoptimized
               priority
             />
+
+            <button
+              type="button"
+              onClick={handleToggleFavorite}
+              aria-label={
+                isFavorite
+                  ? "Remover dos favoritos"
+                  : "Adicionar aos favoritos"
+              }
+              aria-pressed={isFavorite}
+              className="absolute right-3 top-3 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-white/95 shadow-md transition hover:scale-105"
+            >
+              <Heart
+                className={`h-6 w-6 ${
+                  isFavorite ? "fill-primary text-primary" : "text-primary"
+                }`}
+              />
+            </button>
           </div>
 
           {/* Info */}
@@ -153,14 +204,16 @@ export default function ProdutoPage({
             <div className="mt-auto space-y-3">
               <button
                 onClick={handleAddToCart}
-                disabled={product.stock < 1}
+                disabled={soldOut || (alreadyInCart && !added)}
                 className="w-full flex items-center justify-center gap-2 bg-primary text-white font-semibold py-4 rounded-full hover:bg-primary-dark transition disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary/25"
               >
                 <ShoppingBag className="w-5 h-5" />
-                {product.stock < 1
+                {soldOut
                   ? "Esgotado"
                   : added
                   ? "Adicionado! ✓"
+                  : alreadyInCart
+                  ? "Já está no carrinho"
                   : "Adicionar ao carrinho"}
               </button>
 
