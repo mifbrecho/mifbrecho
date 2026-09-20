@@ -1,14 +1,15 @@
 "use client";
 
-import { use } from "react";
+import { use, useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { ShoppingBag, ArrowLeft } from "lucide-react";
+import type { Product } from "@mifre/shared";
 import { Header } from "@/components/Header";
-import { mockProducts } from "@/lib/mock-data";
+import { createClient } from "@/lib/supabase/client";
+import { PRODUCT_SELECT, normalizeProduct } from "@/lib/products";
 import { formatPrice } from "@/lib/utils";
 import { useCart } from "@/store/cart";
-import { ShoppingBag, ArrowLeft } from "lucide-react";
-import { useState } from "react";
 
 export default function ProdutoPage({
   params,
@@ -16,9 +17,54 @@ export default function ProdutoPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
-  const product = mockProducts.find((p) => p.id === id);
   const addItem = useCart((s) => s.addItem);
+
+  const [product, setProduct] = useState<Product | null>(null);
+  const [loading, setLoading] = useState(true);
   const [added, setAdded] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadProduct() {
+      setLoading(true);
+
+      const supabase = createClient();
+
+      const { data, error } = await supabase
+        .from("products")
+        .select(PRODUCT_SELECT)
+        .eq("id", id)
+        .maybeSingle();
+
+      if (cancelled) return;
+
+      if (error) {
+        // Ex.: id antigo/inválido (como "p1") não é um UUID → tratamos como não encontrado
+        console.error("Erro ao carregar produto:", error);
+      }
+
+      setProduct(!error && data ? normalizeProduct(data) : null);
+      setLoading(false);
+    }
+
+    loadProduct();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <div className="text-center py-20">
+          <p className="text-text-muted">Carregando peça...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!product) {
     return (
