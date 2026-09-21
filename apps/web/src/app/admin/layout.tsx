@@ -12,8 +12,8 @@ export const metadata: Metadata = {
     statusBarStyle: "default",
   },
   icons: {
-    icon: [{ url: "/pwa-icon/192?variant=admin", type: "image/png" }],
-    apple: [{ url: "/pwa-icon/180?variant=admin" }],
+    icon: [{ url: "/pwa-icon/192?variant=admin&v=2", type: "image/png" }],
+    apple: [{ url: "/pwa-icon/180?variant=admin&maskable=1&v=2" }],
   },
   robots: { index: false, follow: false },
 };
