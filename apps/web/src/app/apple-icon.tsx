@@ -1,16 +1,15 @@
 import { ImageResponse } from "next/og";
 
-// Ícone que aparece no iPhone e no iPad quando o site é adicionado à Tela de Início
+// Ícone que aparece no iPhone e no iPad quando a loja é adicionada à Tela de Início: só "MIF"
 export const size = { width: 180, height: 180 };
 export const contentType = "image/png";
 
 const BG = "#F6DDDD";
 const INK = "#211B17";
-const ROSE = "#C87F8B";
-const HEART = "#D0788C";
 
-const HEART_PATH =
-  "M309.0 222.0 C281.7 210.6 281.7 191.4 297.1 191.4 C304.6 191.4 308.1 195.6 309.0 199.8 C309.9 195.6 313.4 191.4 320.9 191.4 C336.3 191.4 336.3 210.6 309.0 222.0Z";
+// Centro das letras MIF dentro do desenho
+const LETTERS_CX = 300;
+const LETTERS_CY = 293;
 
 const MIF_PATHS = [
   "M408.6 355.7 L410.4 354.3 L410.1 352.5 L408.6 351.7 L403.6 350.8 L401.2 349.7 L397.4 345.8 L395.7 342.2 L395.1 333.1 L395.1 298.1 L396.6 296.1 L399.0 295.6 L415.7 295.6 L421.9 297.0 L425.0 298.8 L427.6 301.2 L430.0 305.3 L432.3 312.7 L433.5 313.8 L434.8 313.6 L435.9 312.0 L436.2 309.3 L436.2 275.0 L435.0 272.2 L434.0 271.9 L432.9 272.4 L429.6 279.7 L426.8 284.0 L424.3 286.6 L420.8 288.4 L416.2 289.6 L407.5 290.3 L398.5 290.3 L396.6 289.3 L395.3 287.1 L395.1 284.0 L395.0 259.6 L395.0 240.1 L395.3 238.0 L397.1 236.3 L400.5 235.6 L431.3 235.6 L446.7 237.1 L453.4 240.6 L458.2 244.8 L461.8 250.4 L464.7 259.4 L466.6 260.5 L468.1 259.5 L468.6 257.4 L468.6 235.6 L467.9 232.6 L466.2 230.8 L464.1 230.5 L454.5 230.5 L448.6 230.5 L363.1 230.5 L360.1 231.3 L358.8 232.5 L358.7 233.6 L359.7 234.8 L367.2 236.9 L370.2 239.7 L371.1 242.7 L371.8 249.0 L371.9 259.0 L371.7 331.0 L371.7 341.0 L370.5 344.8 L367.8 348.6 L365.6 350.2 L360.2 352.0 L359.2 353.2 L359.3 354.2 L361.0 355.5 L364.5 355.8 L374.0 355.9 L405.2 355.9Z",
@@ -31,12 +30,14 @@ export default function AppleIcon() {
           background: BG,
         }}
       >
-        <svg width={150} height={150} viewBox="29 29 524 524">
-          <circle cx="291" cy="291" r="239" fill="none" stroke={ROSE} strokeWidth="16" />
-          <path d={HEART_PATH} fill={HEART} />
-          {MIF_PATHS.map((d, index) => (
-            <path key={index} d={d} fill={INK} />
-          ))}
+        <svg width={180} height={180} viewBox="29 29 524 524">
+          <g
+            transform={`translate(291 291) scale(1.1) translate(-${LETTERS_CX} -${LETTERS_CY})`}
+          >
+            {MIF_PATHS.map((d, index) => (
+              <path key={index} d={d} fill={INK} />
+            ))}
+          </g>
         </svg>
       </div>
     ),
