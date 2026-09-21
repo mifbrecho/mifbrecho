@@ -1,14 +1,20 @@
 // Manifesto do app do PAINEL (admin), instalável separado do app da loja.
 // Fica fora de /admin de propósito: o navegador lê este arquivo sem estar logado.
  
-export function GET() {
+export function GET(request: Request) {
+  const host = (request.headers.get("host") ?? "").toLowerCase();
+ 
+  // No endereço próprio do painel (admin.mifbrecho.com.br) o app cobre o site todo,
+  // inclusive a tela de login, e não se mistura com o app da loja.
+  const onAdminDomain = host.startsWith("admin.");
+ 
   const manifest = {
     name: "MIF BRECHO Admin",
     short_name: "MIF Admin",
     description: "Painel da loja MIF BRECHO: pedidos, peças e estoque.",
     id: "/admin",
     start_url: "/admin",
-    scope: "/admin",
+    scope: onAdminDomain ? "/" : "/admin",
     display: "standalone",
     orientation: "portrait",
     background_color: "#fdeaf1",
