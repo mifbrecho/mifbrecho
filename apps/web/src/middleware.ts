@@ -5,7 +5,9 @@ import { NextResponse, type NextRequest } from "next/server";
  * Guarda do painel /admin.
  * - Sem login  → vai para /login (e volta para o /admin depois de entrar)
  * - Logada, mas não é admin → vai para a página inicial
- * - Admin → entra
+ * - Admin sem autenticador configurado → tela de configuração (/admin/seguranca)
+ * - Admin com autenticador, sem o código deste login → /admin/verificar
+ * - Admin com o código confirmado → entra
  *
  * IMPORTANTE: este arquivo precisa ficar em apps/web/src/middleware.ts
  * (o projeto usa a pasta src, então na raiz o Next.js ignora).
@@ -77,6 +79,27 @@ export async function middleware(request: NextRequest) {
  
   if (profile?.role !== "admin") {
     return redirectTo("/");
+  }
+ 
+  // Verificação em duas etapas (código do app autenticador) obrigatória no painel
+  const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+  const path = request.nextUrl.pathname;
+ 
+  if (aal) {
+    if (aal.nextLevel === "aal1") {
+      // ainda não configurou o autenticador: só pode ir para a tela de configuração
+      if (!path.startsWith("/admin/seguranca")) {
+        return redirectTo("/admin/seguranca");
+      }
+    } else if (aal.currentLevel !== "aal2") {
+      // configurou, mas ainda não digitou o código neste login
+      if (!path.startsWith("/admin/verificar")) {
+        return redirectTo(
+          "/admin/verificar",
+          `?next=${encodeURIComponent(path + request.nextUrl.search)}`
+        );
+      }
+    }
   }
  
   return response;
