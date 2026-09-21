@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Instagram, Mail, MapPin, MessageCircle } from "lucide-react";
 import { STORE, whatsappLink } from "@/lib/store-info";
+import InstallBanner from "@/components/InstallBanner";
 
 const infoLinks = [
   { href: "/sobre", label: "Sobre a loja" },
@@ -125,6 +126,7 @@ export default function SiteExtras() {
     <>
       <Footer />
       <WhatsAppButton />
+      <InstallBanner />
     </>
   );
 }
