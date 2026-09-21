@@ -12,6 +12,7 @@ const infoLinks = [
   { href: "/privacidade", label: "Política de privacidade" },
   { href: "/termos", label: "Termos de uso" },
   { href: "/contato", label: "Contato" },
+  { href: "/instalar", label: "Instalar o app" },
 ];
 
 function Footer() {
