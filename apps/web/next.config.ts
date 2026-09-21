@@ -1,5 +1,5 @@
 import type { NextConfig } from "next";
-
+ 
 const nextConfig: NextConfig = {
   images: {
     remotePatterns: [
@@ -10,6 +10,18 @@ const nextConfig: NextConfig = {
     ],
   },
   transpilePackages: ["@mifre/shared"],
+ 
+  // No endereço do painel (admin.mifbrecho.com.br), a página inicial é o painel
+  async redirects() {
+    return [
+      {
+        source: "/",
+        has: [{ type: "host", value: "admin.mifbrecho.com.br" }],
+        destination: "/admin",
+        permanent: false,
+      },
+    ];
+  },
 };
-
+ 
 export default nextConfig;
