@@ -1,22 +1,31 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { ArrowLeft, Check, Copy } from "lucide-react";
 import { Header } from "@/components/Header";
 import { createClient } from "@/lib/supabase/client";
 import { formatPrice } from "@/lib/utils";
+import { STORE, whatsappLink } from "@/lib/store-info";
 import {
   ORDER_DETAIL_SELECT,
   ORDER_STEPS,
   ORDER_STATUS,
   formatOrderDate,
+  isPickupOrder,
   itemImageUrl,
   orderNumber,
   statusInfo,
   type OrderRow,
 } from "@/lib/orders";
+
+function formatTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 
 export default function PedidoDetalhePage({
   params,
@@ -29,11 +38,15 @@ export default function PedidoDetalhePage({
   const [loading, setLoading] = useState(true);
   const [loggedIn, setLoggedIn] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
+
+  // guarda o status mais recente para só conferir de novo enquanto espera o pagamento
+  const statusRef = useRef<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
-    async function loadOrder() {
+    async function loadOrder(silent: boolean) {
       const supabase = createClient();
 
       const {
@@ -62,14 +75,28 @@ export default function PedidoDetalhePage({
         console.error("Erro ao carregar pedido:", error);
       }
 
-      setOrder(!error && data ? (data as unknown as OrderRow) : null);
-      setLoading(false);
+      const loaded = !error && data ? (data as unknown as OrderRow) : null;
+
+      statusRef.current = loaded?.status ?? null;
+      setOrder(loaded);
+
+      if (!silent) setLoading(false);
     }
 
-    loadOrder();
+    loadOrder(false);
+
+    // Enquanto o pedido espera o pagamento, confere o status a cada 10 segundos
+    const poll = setInterval(() => {
+      if (statusRef.current === "pending_payment") loadOrder(true);
+    }, 10000);
+
+    // Atualiza o "faltam X min" a cada 30 segundos
+    const clock = setInterval(() => setNow(Date.now()), 30000);
 
     return () => {
       cancelled = true;
+      clearInterval(poll);
+      clearInterval(clock);
     };
   }, [id]);
 
@@ -139,6 +166,13 @@ export default function PedidoDetalhePage({
   const cancelled = order.status === "cancelled";
   const currentStep = ORDER_STEPS.findIndex((step) => step === order.status);
   const items = order.items ?? [];
+  const pickup = isPickupOrder(order);
+
+  const remainingMs = order.expires_at
+    ? new Date(order.expires_at).getTime() - now
+    : null;
+  const remainingMinutes =
+    remainingMs !== null ? Math.max(Math.ceil(remainingMs / 60000), 0) : null;
 
   const addressLine1 = [order.shipping_street, order.shipping_number]
     .filter(Boolean)
@@ -152,6 +186,10 @@ export default function PedidoDetalhePage({
   ]
     .filter(Boolean)
     .join(" · ");
+
+  const orderWhatsapp = whatsappLink(
+    `Olá! Estou falando sobre o pedido #${orderNumber(order.id)} da MIF BRECHO.`
+  );
 
   return (
     <div className="min-h-screen bg-background">
@@ -216,30 +254,58 @@ export default function PedidoDetalhePage({
           )}
         </section>
 
-        {/* Pix pendente */}
-        {order.status === "pending_payment" && order.pix_copy_paste && (
+        {/* Aguardando pagamento */}
+        {order.status === "pending_payment" && (
           <section className="mb-6 rounded-2xl border border-primary-light bg-white p-5 shadow-sm">
-            <h2 className="mb-2 font-semibold text-text">Pague com Pix</h2>
-            <div className="mb-3 rounded-xl bg-secondary p-3">
-              <p className="break-all font-mono text-xs text-text">
-                {order.pix_copy_paste}
+            <h2 className="mb-2 font-semibold text-text">
+              Aguardando pagamento
+            </h2>
+
+            {order.expires_at && remainingMinutes !== null && (
+              <p className="mb-3 text-sm text-text-muted">
+                {remainingMinutes > 0 ? (
+                  <>
+                    Suas peças estão reservadas até{" "}
+                    <strong className="text-text">
+                      {formatTime(order.expires_at)}
+                    </strong>{" "}
+                    (faltam {remainingMinutes} min).
+                  </>
+                ) : (
+                  "O prazo de reserva terminou. Se você já pagou, fale com a gente pelo WhatsApp."
+                )}
               </p>
-            </div>
-            <button
-              type="button"
-              onClick={copyPix}
-              className="flex w-full items-center justify-center gap-2 rounded-full border-2 border-primary py-3 font-semibold text-primary hover:bg-primary/5"
-            >
-              {copied ? (
-                <>
-                  <Check className="h-4 w-4" /> Copiado!
-                </>
-              ) : (
-                <>
-                  <Copy className="h-4 w-4" /> Copiar código Pix
-                </>
-              )}
-            </button>
+            )}
+
+            {order.pix_copy_paste ? (
+              <>
+                <div className="mb-3 rounded-xl bg-secondary p-3">
+                  <p className="break-all font-mono text-xs text-text">
+                    {order.pix_copy_paste}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={copyPix}
+                  className="flex w-full items-center justify-center gap-2 rounded-full border-2 border-primary py-3 font-semibold text-primary hover:bg-primary/5"
+                >
+                  {copied ? (
+                    <>
+                      <Check className="h-4 w-4" /> Copiado!
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="h-4 w-4" /> Copiar código Pix
+                    </>
+                  )}
+                </button>
+              </>
+            ) : (
+              <p className="text-sm text-text-muted">
+                O código Pix aparece aqui assim que estiver disponível. Se
+                preferir, fale com a loja pelo WhatsApp.
+              </p>
+            )}
           </section>
         )}
 
@@ -281,32 +347,60 @@ export default function PedidoDetalhePage({
             ))}
           </div>
 
-          <div className="mt-5 flex items-center justify-between border-t border-primary-light pt-4">
-            <span className="font-bold text-text">Total</span>
-            <span className="text-xl font-bold text-primary">
-              {formatPrice(order.total_amount)}
-            </span>
+          <div className="mt-5 space-y-1 border-t border-primary-light pt-4">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-text-muted">Entrega</span>
+              <span className="text-text-muted">A combinar pelo WhatsApp</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-text">Total das peças</span>
+              <span className="text-xl font-bold text-primary">
+                {formatPrice(order.total_amount)}
+              </span>
+            </div>
           </div>
         </section>
 
         {/* Entrega */}
-        {addressLine1 && (
-          <section className="rounded-2xl border border-primary-light/60 bg-white p-5 shadow-sm">
-            <h2 className="mb-2 font-semibold text-text">Endereço de entrega</h2>
-            <p className="text-sm text-text">{addressLine1}</p>
-            {addressLine2 && (
-              <p className="text-sm text-text-muted">{addressLine2}</p>
-            )}
-            {addressLine3 && (
-              <p className="text-sm text-text-muted">{addressLine3}</p>
-            )}
-            {order.shipping_reference && (
-              <p className="mt-1 text-xs text-text-muted">
-                Ref.: {order.shipping_reference}
-              </p>
-            )}
-          </section>
-        )}
+        <section className="mb-6 rounded-2xl border border-primary-light/60 bg-white p-5 shadow-sm">
+          <h2 className="mb-2 font-semibold text-text">Entrega</h2>
+
+          {order.notes && (
+            <p className="mb-2 text-sm font-medium text-text">{order.notes}</p>
+          )}
+
+          {pickup ? (
+            <p className="text-sm text-text-muted">
+              Combinamos o local e o horário da retirada pelo WhatsApp.
+            </p>
+          ) : (
+            <>
+              {addressLine1 && (
+                <p className="text-sm text-text">{addressLine1}</p>
+              )}
+              {addressLine2 && (
+                <p className="text-sm text-text-muted">{addressLine2}</p>
+              )}
+              {addressLine3 && (
+                <p className="text-sm text-text-muted">{addressLine3}</p>
+              )}
+              {order.shipping_reference && (
+                <p className="mt-1 text-xs text-text-muted">
+                  Ref.: {order.shipping_reference}
+                </p>
+              )}
+            </>
+          )}
+        </section>
+
+        <a
+          href={orderWhatsapp}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex w-full items-center justify-center rounded-full bg-[#25D366] py-3 font-semibold text-white hover:opacity-90"
+        >
+          Falar com a {STORE.name} sobre este pedido
+        </a>
       </main>
     </div>
   );
