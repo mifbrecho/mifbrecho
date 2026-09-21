@@ -95,6 +95,7 @@ export interface OrderRow {
   total_amount: number; // centavos
   created_at: string;
   pix_copy_paste?: string | null;
+  expires_at?: string | null;
   notes?: string | null;
   shipping_street?: string | null;
   shipping_number?: string | null;
@@ -127,4 +128,9 @@ export function itemImageUrl(product: OrderItemProduct | null): string {
   });
  
   return images[0]?.url || PLACEHOLDER_IMAGE;
+}
+ 
+/** Pedido de retirada na loja (não tem endereço de entrega) */
+export function isPickupOrder(order: { notes?: string | null }): boolean {
+  return (order.notes ?? "").startsWith("Retirada");
 }
