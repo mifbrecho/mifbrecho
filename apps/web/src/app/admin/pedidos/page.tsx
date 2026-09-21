@@ -6,6 +6,7 @@ import { formatPrice } from "@/lib/utils";
 import { phoneToWhatsappNumber, whatsappLink } from "@/lib/store-info";
 import {
   formatOrderDate,
+  isPickupOrder,
   itemImageUrl,
   orderNumber,
   statusInfo,
@@ -111,7 +112,7 @@ export default function AdminPedidosPage() {
 
     if (newStatus === "cancelled") {
       const confirmed = window.confirm(
-        `Cancelar o pedido #${orderNumber(order.id)}?\n\nAtenção: por enquanto o cancelamento só muda o status. Se precisar, volte a peça ao estoque em Produtos.`
+        `Cancelar o pedido #${orderNumber(order.id)}?\n\nAs peças voltam para a loja automaticamente. Um pedido cancelado não pode ser reaberto.`
       );
 
       if (!confirmed) return;
@@ -138,7 +139,11 @@ export default function AdminPedidosPage() {
       setOrders((current) =>
         current.map((o) => (o.id === order.id ? { ...o, status: previous } : o))
       );
-      setError(`Não foi possível mudar o status: ${updateError.message}`);
+      setError(
+        updateError.message.includes("PEDIDO_CANCELADO_NAO_REABRE")
+          ? "Um pedido cancelado não pode ser reaberto. Peça para a cliente fazer um novo pedido."
+          : `Não foi possível mudar o status: ${updateError.message}`
+      );
     } else {
       setMessage(
         `Pedido #${orderNumber(order.id)} agora está: ${ADMIN_LABEL[newStatus]}.`
@@ -234,7 +239,7 @@ export default function AdminPedidosPage() {
             const info = statusInfo(order.status);
             const customer = order.customer;
 
-            const address = [
+            const addressParts = [
               [order.shipping_street, order.shipping_number]
                 .filter(Boolean)
                 .join(", "),
@@ -247,6 +252,10 @@ export default function AdminPedidosPage() {
             ]
               .filter(Boolean)
               .join(" · ");
+
+            const address = isPickupOrder(order)
+              ? "Retirada com a loja"
+              : addressParts;
 
             const wa = whatsappLink(
               deliveryMessage(order, address),
@@ -348,7 +357,7 @@ export default function AdminPedidosPage() {
 
                 {order.notes && (
                   <p className="mb-3 rounded-lg bg-secondary px-3 py-2 text-xs text-text-muted">
-                    Obs.: {order.notes}
+                    📦 {order.notes}
                   </p>
                 )}
 
