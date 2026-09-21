@@ -1,7 +1,8 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Poppins, Nunito } from "next/font/google";
 import "./globals.css";
 import SiteExtras from "@/components/SiteExtras";
+import PwaRegister from "@/components/PwaRegister";
 
 const poppins = Poppins({
   subsets: ["latin"],
@@ -18,8 +19,22 @@ const nunito = Nunito({
 const DESCRIPTION =
   "Brechó online de Campo Grande - MS. Peças únicas e selecionadas, pagamento por Pix e entrega com carinho.";
 
+// Cor da barra do navegador no celular
+export const viewport: Viewport = {
+  themeColor: "#e91e63",
+};
+
 export const metadata: Metadata = {
   metadataBase: new URL("https://www.mifbrecho.com.br"),
+  applicationName: "MIF BRECHO",
+  appleWebApp: {
+    capable: true,
+    title: "MIF BRECHO",
+    statusBarStyle: "default",
+  },
+  icons: {
+    icon: [{ url: "/pwa-icon/192", type: "image/png" }],
+  },
   title: "MIF BRECHO | Peças com carinho",
   description: DESCRIPTION,
   openGraph: {
@@ -47,6 +62,7 @@ export default function RootLayout({
       <body className={`${poppins.variable} ${nunito.variable} antialiased`}>
         {children}
         <SiteExtras />
+        <PwaRegister />
       </body>
     </html>
   );
