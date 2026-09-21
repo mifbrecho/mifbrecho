@@ -21,10 +21,10 @@ export function GET(request: Request) {
     theme_color: "#e91e63",
     lang: "pt-BR",
     icons: [
-      { src: "/pwa-icon/192?variant=admin", sizes: "192x192", type: "image/png", purpose: "any" },
-      { src: "/pwa-icon/512?variant=admin", sizes: "512x512", type: "image/png", purpose: "any" },
+      { src: "/pwa-icon/192?variant=admin&v=2", sizes: "192x192", type: "image/png", purpose: "any" },
+      { src: "/pwa-icon/512?variant=admin&v=2", sizes: "512x512", type: "image/png", purpose: "any" },
       {
-        src: "/pwa-icon/512?variant=admin&maskable=1",
+        src: "/pwa-icon/512?variant=admin&maskable=1&v=2",
         sizes: "512x512",
         type: "image/png",
         purpose: "maskable",
