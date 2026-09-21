@@ -247,6 +247,10 @@ export default function CheckoutPage() {
         setError("No momento entregamos somente em Mato Grosso do Sul.");
       } else if (message.includes("MOTOBOY_SO_CAMPO_GRANDE")) {
         setError("A entrega por motoboy é só em Campo Grande.");
+      } else if (message.includes("MUITOS_PEDIDOS_PENDENTES")) {
+        setError(
+          "Você já tem pedidos aguardando pagamento. Pague ou espere expirar antes de fazer outro."
+        );
       } else if (message.includes("ENDERECO_INVALIDO")) {
         setError("Preencha o endereço completo.");
       } else {
