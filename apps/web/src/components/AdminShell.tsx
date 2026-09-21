@@ -9,6 +9,7 @@ const links = [
   { href: "/admin", label: "Resumo", exact: true },
   { href: "/admin/produtos", label: "Produtos", exact: false },
   { href: "/admin/pedidos", label: "Pedidos", exact: false },
+  { href: "/admin/seguranca", label: "Segurança", exact: false },
 ];
 
 type PushState = "checking" | "unsupported" | "off" | "on" | "denied" | "busy";
