@@ -1,6 +1,7 @@
 import { ImageResponse } from "next/og";
 
-// Ícone do app instalado no celular (192 e 512 px).
+// Ícone do app instalado no celular (180, 192 e 512 px).
+// Com ?variant=admin sai a versão do PAINEL (fundo rosa escuro, letras brancas e "ADM").
 // Com ?maskable=1 o desenho fica menor e o fundo preenche tudo,
 // assim o Android pode recortar em círculo ou quadrado sem cortar o logo.
 
@@ -8,6 +9,11 @@ const BG = "#F6DDDD";
 const INK = "#211B17";
 const ROSE = "#C87F8B";
 const HEART = "#D0788C";
+
+// Cores do ícone do painel
+const ADMIN_BG = "#C2185B";
+const ADMIN_LIGHT = "#FFFFFF";
+const ADMIN_ACCENT = "#F8BBD9";
 
 const HEART_PATH =
   "M309.0 222.0 C281.7 210.6 281.7 191.4 297.1 191.4 C304.6 191.4 308.1 195.6 309.0 199.8 C309.9 195.6 313.4 191.4 320.9 191.4 C336.3 191.4 336.3 210.6 309.0 222.0Z";
@@ -23,9 +29,16 @@ export async function GET(
   context: { params: Promise<{ size: string }> }
 ) {
   const { size: sizeParam } = await context.params;
-  const size = sizeParam === "192" ? 192 : 512;
-  const maskable = new URL(request.url).searchParams.get("maskable") === "1";
+  const size = sizeParam === "180" ? 180 : sizeParam === "192" ? 192 : 512;
+
+  const search = new URL(request.url).searchParams;
+  const maskable = search.get("maskable") === "1";
+  const admin = search.get("variant") === "admin";
+
   const art = Math.round(size * (maskable ? 0.72 : 1));
+  const offset = (size - art) / 2;
+
+  const background = admin ? ADMIN_BG : BG;
 
   return new ImageResponse(
     (
@@ -36,17 +49,44 @@ export async function GET(
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: maskable ? BG : "transparent",
+          position: "relative",
+          background: maskable ? background : "transparent",
         }}
       >
         <svg width={art} height={art} viewBox="29 29 524 524">
-          <circle cx="291" cy="291" r="262" fill={BG} />
-          <circle cx="291" cy="291" r="239" fill="none" stroke={ROSE} strokeWidth="16" />
-          <path d={HEART_PATH} fill={HEART} />
+          <circle cx="291" cy="291" r="262" fill={background} />
+          <circle
+            cx="291"
+            cy="291"
+            r="239"
+            fill="none"
+            stroke={admin ? ADMIN_ACCENT : ROSE}
+            strokeWidth="16"
+          />
+          <path d={HEART_PATH} fill={admin ? ADMIN_ACCENT : HEART} />
           {MIF_PATHS.map((d, index) => (
-            <path key={index} d={d} fill={INK} />
+            <path key={index} d={d} fill={admin ? ADMIN_LIGHT : INK} />
           ))}
         </svg>
+
+        {admin && (
+          <div
+            style={{
+              position: "absolute",
+              top: Math.round(offset + art * 0.7),
+              left: 0,
+              width: size,
+              display: "flex",
+              justifyContent: "center",
+              fontSize: Math.round(art * 0.09),
+              fontWeight: 700,
+              letterSpacing: Math.round(art * 0.02),
+              color: ADMIN_LIGHT,
+            }}
+          >
+            ADM
+          </div>
+        )}
       </div>
     ),
     { width: size, height: size }
