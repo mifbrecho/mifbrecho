@@ -33,7 +33,7 @@ export const metadata: Metadata = {
     statusBarStyle: "default",
   },
   icons: {
-    icon: [{ url: "/pwa-icon/192", type: "image/png" }],
+    icon: [{ url: "/pwa-icon/192?v=2", type: "image/png" }],
   },
   title: "MIF BRECHO | Peças com carinho",
   description: DESCRIPTION,
