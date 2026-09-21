@@ -107,18 +107,6 @@ export default async function HomePage() {
           </div>
         </section>
       </main>
-
-      <footer className="bg-primary-dark text-white py-8 px-4">
-        <div className="max-w-6xl mx-auto text-center">
-          <p className="font-bold text-lg mb-1">MIF BRECHO</p>
-          <p className="text-primary-light text-sm mb-3">
-            Peças selecionadas com amor 💕
-          </p>
-          <p className="text-xs text-primary-light/70">
-            © {new Date().getFullYear()} MIF BRECHO
-          </p>
-        </div>
-      </footer>
     </div>
   );
 }
