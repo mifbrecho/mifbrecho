@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { formatPrice } from "@/lib/utils";
+import { phoneToWhatsappNumber, whatsappLink } from "@/lib/store-info";
 import {
   formatOrderDate,
   itemImageUrl,
@@ -42,13 +43,28 @@ const ADMIN_LABEL: Record<OrderStatus, string> = {
 
 const SELECT = `*, customer:profiles(full_name, phone, email), items:order_items(id, quantity, unit_price, product:products(id, title, size, images:product_images(url, is_primary, sort_order)))`;
 
-function whatsappLink(phone: string | null): string | null {
-  if (!phone) return null;
+function deliveryMessage(order: AdminOrder, address: string): string {
+  const firstName = (order.customer?.full_name ?? "").trim().split(" ")[0];
 
-  const digits = phone.replace(/\D/g, "");
-  if (digits.length < 10) return null;
+  const items = (order.items ?? [])
+    .map(
+      (item) =>
+        `• ${item.product?.title ?? "Peça"}${
+          item.product?.size ? ` (${item.product.size})` : ""
+        }`
+    )
+    .join("\n");
 
-  return `https://wa.me/${digits.startsWith("55") ? digits : `55${digits}`}`;
+  return [
+    `Olá${firstName ? `, ${firstName}` : ""}! Aqui é da MIF BRECHO 💕`,
+    `Recebemos o seu pedido #${orderNumber(order.id)}:`,
+    items,
+    `Total das peças: ${formatPrice(order.total_amount)}`,
+    address ? `Endereço de entrega: ${address}` : "",
+    "Vou ver o valor da entrega e já te passo por aqui, tudo bem?",
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 export default function AdminPedidosPage() {
@@ -217,7 +233,6 @@ export default function AdminPedidosPage() {
           {visible.map((order) => {
             const info = statusInfo(order.status);
             const customer = order.customer;
-            const wa = whatsappLink(customer?.phone ?? null);
 
             const address = [
               [order.shipping_street, order.shipping_number]
@@ -232,6 +247,11 @@ export default function AdminPedidosPage() {
             ]
               .filter(Boolean)
               .join(" · ");
+
+            const wa = whatsappLink(
+              deliveryMessage(order, address),
+              phoneToWhatsappNumber(customer?.phone) ?? ""
+            );
 
             return (
               <article
@@ -304,6 +324,26 @@ export default function AdminPedidosPage() {
 
                 {address && (
                   <p className="mb-3 text-sm text-text-muted">📍 {address}</p>
+                )}
+
+                {order.status !== "cancelled" && (
+                  <div className="mb-3">
+                    <a
+                      href={wa}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 py-2.5 text-sm font-semibold text-white hover:opacity-90"
+                    >
+                      Combinar entrega no WhatsApp
+                    </a>
+
+                    {!customer?.phone && (
+                      <p className="mt-1.5 text-xs text-text-muted">
+                        Esta cliente ainda não tem telefone cadastrado. Escolha o
+                        contato dela no WhatsApp.
+                      </p>
+                    )}
+                  </div>
                 )}
 
                 {order.notes && (
