@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import Turnstile from "@/components/Turnstile";
 import { ArrowLeft, Loader2, Mail } from "lucide-react";
 
 export default function RecuperarSenhaPage() {
@@ -11,8 +12,16 @@ export default function RecuperarSenhaPage() {
   const [sent, setSent] = useState(false);
   const [error, setError] = useState("");
 
+  const [captchaToken, setCaptchaToken] = useState("");
+  const [captchaKey, setCaptchaKey] = useState(0); // muda pra recriar o widget
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (!captchaToken) {
+      setError("Confirme que você não é um robô.");
+      return;
+    }
 
     setLoading(true);
     setError("");
@@ -23,8 +32,13 @@ export default function RecuperarSenhaPage() {
       email.trim(),
       {
         redirectTo: `${window.location.origin}/redefinir-senha`,
+        captchaToken,
       }
     );
+
+    // o token só vale uma tentativa — pede um novo sempre
+    setCaptchaToken("");
+    setCaptchaKey((key) => key + 1);
 
     setLoading(false);
 
@@ -124,6 +138,12 @@ export default function RecuperarSenhaPage() {
                 </div>
               </div>
 
+              <Turnstile
+                key={captchaKey}
+                onVerify={setCaptchaToken}
+                onExpire={() => setCaptchaToken("")}
+              />
+
               {error && (
                 <div className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">
                   {error}
@@ -132,7 +152,7 @@ export default function RecuperarSenhaPage() {
 
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || !captchaToken}
                 className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#3d302b] px-5 py-3 font-semibold text-white transition hover:opacity-90 disabled:opacity-60"
               >
                 {loading && <Loader2 size={18} className="animate-spin" />}
