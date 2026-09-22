@@ -350,10 +350,18 @@ export default function AdminProductsPage() {
 
     let hasPrimary = alreadySaved.some((i) => i.is_primary);
 
+    const EXTENSION_BY_MIME: Record<string, string> = {
+      "image/jpeg": "jpg",
+      "image/png": "png",
+      "image/webp": "webp",
+    };
+
     for (let index = 0; index < newFiles.length; index++) {
       const file = newFiles[index];
 
-      const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
+      // extensão vem do tipo do arquivo (já validado em addFiles), nunca do
+      // nome que o navegador manda — evita salvar arquivo com extensão falsa
+      const extension = EXTENSION_BY_MIME[file.type] || "jpg";
       const filePath = `products/${productId}-${Date.now()}-${index}.${extension}`;
 
       const uploadResult = await supabase.storage
