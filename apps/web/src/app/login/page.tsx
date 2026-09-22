@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import Turnstile from "@/components/Turnstile";
 import { ArrowLeft, Loader2, Lock, Mail } from "lucide-react";
 
 export default function LoginPage() {
@@ -11,8 +12,16 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  const [captchaToken, setCaptchaToken] = useState("");
+  const [captchaKey, setCaptchaKey] = useState(0); // muda pra recriar o widget
+
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (!captchaToken) {
+      setError("Confirme que você não é um robô.");
+      return;
+    }
 
     setLoading(true);
     setError("");
@@ -22,7 +31,12 @@ export default function LoginPage() {
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
+      options: { captchaToken },
     });
+
+    // o token só vale uma tentativa — pede um novo sempre
+    setCaptchaToken("");
+    setCaptchaKey((key) => key + 1);
 
     if (error) {
       setError("E-mail ou senha incorretos.");
@@ -30,18 +44,7 @@ export default function LoginPage() {
       return;
     }
 
-    // Volta para onde a pessoa queria ir (ex.: /admin).
-    // Só aceita caminhos do próprio site, nunca links externos.
-    const next = new URLSearchParams(window.location.search).get("next");
-    const safeNext =
-      next &&
-      next.startsWith("/") &&
-      !next.startsWith("//") &&
-      !next.includes("\\")
-        ? next
-        : "/conta";
-
-    window.location.href = safeNext;
+    window.location.href = "/";
   }
 
   return (
@@ -104,60 +107,6 @@ export default function LoginPage() {
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-semibold text-[#3d302b]">
-                Senha
-              </label>
-
-              <div className="flex items-center gap-3 rounded-xl border border-[#eadfd8] px-4 py-3">
-                <Lock size={19} className="text-[#8b6757]" />
-
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  placeholder="Sua senha"
-                  required
-                  className="w-full bg-transparent outline-none"
-                />
-              </div>
-            </div>
-
-            <div className="-mt-2 text-right">
-              <Link
-                href="/recuperar-senha"
-                className="text-sm font-semibold text-[#6b5145] hover:underline"
-              >
-                Esqueci minha senha
-              </Link>
-            </div>
-
-            {error && (
-              <div className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">
-                {error}
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#3d302b] px-5 py-3 font-semibold text-white transition hover:opacity-90 disabled:opacity-60"
-            >
-              {loading && <Loader2 size={18} className="animate-spin" />}
-              {loading ? "Entrando..." : "Entrar"}
-            </button>
-          </form>
-
-          <div className="mt-6 text-center text-sm text-[#806f67]">
-            Ainda não tem uma conta?{" "}
-            <Link
-              href="/cadastro"
-              className="font-semibold text-[#6b5145] hover:underline"
-            >
-              Criar minha conta
-            </Link>
-          </div>
-        </div>
-      </section>
-    </main>
-  );
-}
+              <div className="mb-2 flex items-center justify-between">
+                <label className="text-sm font-semibold text-[#3d302b]">
+                  Senha
