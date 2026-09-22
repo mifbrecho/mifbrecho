@@ -4,7 +4,7 @@ import type { NextConfig } from "next";
 const contentSecurityPolicy = [
   "default-src 'self'",
   // o Next.js precisa de 'unsafe-inline' para os scripts que ele mesmo gera
-  "script-src 'self' 'unsafe-inline'",
+  "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https://*.supabase.co https://placehold.co",
   "font-src 'self' data:",
@@ -16,6 +16,8 @@ const contentSecurityPolicy = [
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",
+  // o widget do Turnstile roda dentro de um iframe da Cloudflare
+  "frame-src https://challenges.cloudflare.com",
   "frame-ancestors 'none'",
   "upgrade-insecure-requests",
 ].join("; ");
