@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import Turnstile from "@/components/Turnstile";
 import { ArrowLeft, Loader2, Lock, Mail, User } from "lucide-react";
 
 export default function CadastroPage() {
@@ -13,8 +14,16 @@ export default function CadastroPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
+  const [captchaToken, setCaptchaToken] = useState("");
+  const [captchaKey, setCaptchaKey] = useState(0); // muda pra recriar o widget
+
   async function handleSignup(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (!captchaToken) {
+      setError("Confirme que você não é um robô.");
+      return;
+    }
 
     setLoading(true);
     setError("");
@@ -26,6 +35,7 @@ export default function CadastroPage() {
       email,
       password,
       options: {
+        captchaToken,
         data: {
           // full_name é o que o banco usa para criar o perfil
           full_name: name.trim(),
@@ -33,6 +43,10 @@ export default function CadastroPage() {
         },
       },
     });
+
+    // o token só vale uma tentativa — pede um novo sempre
+    setCaptchaToken("");
+    setCaptchaKey((key) => key + 1);
 
     if (error) {
       setError(error.message);
@@ -145,6 +159,12 @@ export default function CadastroPage() {
               </div>
             </div>
 
+            <Turnstile
+              key={captchaKey}
+              onVerify={setCaptchaToken}
+              onExpire={() => setCaptchaToken("")}
+            />
+
             {error && (
               <div className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">
                 {error}
@@ -159,7 +179,7 @@ export default function CadastroPage() {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !captchaToken}
               className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#3d302b] px-5 py-3 font-semibold text-white transition hover:opacity-90 disabled:opacity-60"
             >
               {loading && <Loader2 size={18} className="animate-spin" />}
