@@ -10,9 +10,9 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(self.clients.claim());
 });
  
-self.addEventListener("fetch", () => {
-  // sem cache de propósito: o site sempre carrega a versão mais nova
-});
+// Sem handler de "fetch" de propósito: sem ele, o navegador ignora o
+// service worker nas requisições (mais rápido) e o site continua sempre
+// carregando a versão mais nova, sem cache.
  
 self.addEventListener("push", (event) => {
   let data = {};
