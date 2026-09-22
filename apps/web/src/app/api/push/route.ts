@@ -11,6 +11,28 @@ export const dynamic = "force-dynamic";
 const SUBJECT = "mailto:mifbrecho@gmail.com";
  
 /**
+ * Só envia aviso para os serviços de notificação dos navegadores conhecidos
+ * (Chrome/Android, Firefox, Safari/iPhone e Edge). Qualquer outro endereço é ignorado.
+ */
+function isKnownPushService(endpoint: string): boolean {
+  try {
+    const url = new URL(endpoint);
+    const host = url.hostname.toLowerCase();
+ 
+    return (
+      url.protocol === "https:" &&
+      (host === "fcm.googleapis.com" ||
+        host === "updates.push.services.mozilla.com" ||
+        host.endsWith(".push.services.mozilla.com") ||
+        host.endsWith(".push.apple.com") ||
+        host.endsWith(".notify.windows.com"))
+    );
+  } catch {
+    return false;
+  }
+}
+ 
+/**
  * As chaves de envio (VAPID) são calculadas a partir do segredo PUSH_WEBHOOK_SECRET.
  * Assim só existe UM segredo para guardar, e ninguém precisa gerar chaves.
  */
@@ -113,7 +135,7 @@ export async function POST(request: Request) {
       .filter(
         (s) =>
           typeof s.endpoint === "string" &&
-          s.endpoint.startsWith("https://") &&
+          isKnownPushService(s.endpoint) &&
           typeof s.p256dh === "string" &&
           typeof s.auth === "string"
       )
