@@ -77,11 +77,19 @@ export async function POST(req: Request) {
   /*
    * TESTE DO MERCADO PAGO
    *
-   * Se MERCADOPAGO_TEST_PAYER_EMAIL estiver configurado,
-   * usa o comprador de teste no lugar do e-mail do usuário logado.
+   * Se MERCADOPAGO_TEST_PAYER_EMAIL estiver configurado, usa o
+   * comprador de teste com first_name "APRO". Esse é o gatilho oficial
+   * do Mercado Pago pra aprovar o Pix de teste sozinho, sem pagamento
+   * real (documentação: compra teste com Pix, Checkout API Orders).
+   *
+   * Importante: pra esse gatilho funcionar, a requisição precisa ficar
+   * bem parecida com o exemplo oficial — por isso NÃO mandamos
+   * expiration_time customizado quando é comprador de teste.
    */
   const testPayerEmail =
     process.env.MERCADOPAGO_TEST_PAYER_EMAIL;
+ 
+  const isTestPayer = Boolean(testPayerEmail);
  
   const payerEmail = testPayerEmail || user.email;
  
@@ -116,20 +124,33 @@ export async function POST(req: Request) {
  
         payer: {
           email: payerEmail,
+ 
+          ...(isTestPayer
+            ? {
+                first_name: "APRO",
+              }
+            : {}),
         },
  
         transactions: {
           payments: [
             {
               amount,
-              // O Pix vence junto com a reserva da peça (30 min), pra
-              // ninguém pagar um Pix depois que o pedido já foi cancelado
-              // e a peça voltou pro estoque.
-              expiration_time: `PT${PIX_RESERVATION_MINUTES}M`,
               payment_method: {
                 id: "pix",
                 type: "bank_transfer",
               },
+ 
+              // O Pix vence junto com a reserva da peça (30 min), pra
+              // ninguém pagar um Pix depois que o pedido já foi cancelado.
+              // Em modo de teste, NÃO mandamos esse campo, porque o
+              // gatilho de aprovação automática do Mercado Pago só
+              // funciona com a requisição "padrão", sem esse extra.
+              ...(isTestPayer
+                ? {}
+                : {
+                    expiration_time: `PT${PIX_RESERVATION_MINUTES}M`,
+                  }),
             },
           ],
         },
@@ -187,23 +208,3 @@ export async function POST(req: Request) {
       p_payment_id: mpOrderId,
       p_qr_code: qrCodeBase64,
       p_copy_paste: qrCode,
-    }
-  );
- 
-  if (saveError) {
-    console.error(
-      "Erro ao salvar Pix no pedido:",
-      saveError
-    );
- 
-    return NextResponse.json(
-      { error: "Pix gerado, mas não foi possível salvar" },
-      { status: 500 }
-    );
-  }
- 
-  return NextResponse.json({
-    pix_qr_code: qrCodeBase64,
-    pix_copy_paste: qrCode,
-  });
-}
