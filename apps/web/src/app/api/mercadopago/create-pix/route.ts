@@ -208,3 +208,23 @@ export async function POST(req: Request) {
       p_payment_id: mpOrderId,
       p_qr_code: qrCodeBase64,
       p_copy_paste: qrCode,
+    }
+  );
+ 
+  if (saveError) {
+    console.error(
+      "Erro ao salvar Pix no pedido:",
+      saveError
+    );
+ 
+    return NextResponse.json(
+      { error: "Pix gerado, mas não foi possível salvar" },
+      { status: 500 }
+    );
+  }
+ 
+  return NextResponse.json({
+    pix_qr_code: qrCodeBase64,
+    pix_copy_paste: qrCode,
+  });
+}
