@@ -261,6 +261,18 @@ export default function CheckoutPage() {
       return;
     }
 
+    // gera o Pix no Mercado Pago antes de levar pro pedido
+    try {
+      await fetch("/api/mercadopago/create-pix", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ order_id: data }),
+      });
+    } catch (pixError) {
+      console.error("Erro ao gerar Pix:", pixError);
+      // não trava o fluxo — a página do pedido tenta de novo se faltar
+    }
+
     clear();
     router.push(`/pedidos/${data}`);
   }
