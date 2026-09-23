@@ -61,6 +61,25 @@ export function orderNumber(id: string): string {
   return id.slice(0, 8).toUpperCase();
 }
  
+/**
+ * Minutos que a peça fica reservada aguardando o Pix.
+ * Precisa bater com o intervalo usado em
+ * supabase/migrations/008_cancel_stale_pending_orders.sql
+ * e com o "expiration_time" enviado ao Mercado Pago em create-pix.
+ */
+export const PIX_RESERVATION_MINUTES = 30;
+ 
+/**
+ * O banco não guarda uma coluna "expires_at" — o vencimento é sempre
+ * created_at + PIX_RESERVATION_MINUTES, do mesmo jeito que a função
+ * de cancelamento automático calcula.
+ */
+export function pixExpiresAt(createdAt: string): Date {
+  return new Date(
+    new Date(createdAt).getTime() + PIX_RESERVATION_MINUTES * 60_000
+  );
+}
+ 
 export function formatOrderDate(iso: string): string {
   return new Date(iso).toLocaleString("pt-BR", {
     dateStyle: "short",
@@ -95,7 +114,7 @@ export interface OrderRow {
   total_amount: number; // centavos
   created_at: string;
   pix_copy_paste?: string | null;
-  expires_at?: string | null;
+  pix_qr_code?: string | null;
   notes?: string | null;
   shipping_street?: string | null;
   shipping_number?: string | null;
