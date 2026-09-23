@@ -8,7 +8,7 @@ export async function POST(req: Request) {
     const body = await req.json();
     orderId = body?.order_id;
   } catch {
-    // corpo vazio ou inválido
+    // Corpo inválido ou vazio.
   }
 
   if (!orderId) {
@@ -33,7 +33,9 @@ export async function POST(req: Request) {
 
   const { data: order, error: orderError } = await supabase
     .from("orders")
-    .select("id, status, total_amount, pix_qr_code, pix_copy_paste")
+    .select(
+      "id, status, total_amount, pix_qr_code, pix_copy_paste"
+    )
     .eq("id", orderId)
     .eq("customer_id", user.id)
     .maybeSingle();
@@ -45,7 +47,7 @@ export async function POST(req: Request) {
     );
   }
 
-  // Se o Pix já foi criado anteriormente, devolve o mesmo.
+  // Se o Pix já foi criado, reutiliza o mesmo.
   if (order.pix_copy_paste) {
     return NextResponse.json({
       pix_qr_code: order.pix_qr_code,
@@ -74,13 +76,12 @@ export async function POST(req: Request) {
   /*
    * TESTE DO MERCADO PAGO
    *
-   * Quando MERCADOPAGO_TEST_PAYER_EMAIL estiver configurado,
-   * usamos o usuário de teste e o nome "APRO", conforme o fluxo
-   * oficial de teste de Pix do Mercado Pago.
-   *
-   * Em produção, essa variável não deve existir.
+   * Se MERCADOPAGO_TEST_PAYER_EMAIL estiver configurado,
+   * usa o comprador de teste e first_name = APRO.
    */
-  const testPayerEmail = process.env.MERCADOPAGO_TEST_PAYER_EMAIL;
+  const testPayerEmail =
+    process.env.MERCADOPAGO_TEST_PAYER_EMAIL;
+
   const payerEmail = testPayerEmail || user.email;
 
   if (!payerEmail) {
@@ -91,20 +92,12 @@ export async function POST(req: Request) {
   }
 
   /*
-   * O banco armazena o valor em centavos.
-   * O Mercado Pago recebe o valor como string decimal.
-   *
-   * Exemplo:
-   * 7990 -> "79.90"
+   * total_amount é enviado em reais.
+   * O banco do MIF BRECHO armazena o valor em centavos.
+   * Exemplo: 7990 -> "79.90"
    */
   const amount = (order.total_amount / 100).toFixed(2);
 
-  /*
-   * Criação da Order Pix no Mercado Pago.
-   *
-   * Endpoint oficial:
-   * POST https://api.mercadopago.com/v1/orders
-   */
   const mpResponse = await fetch(
     "https://api.mercadopago.com/v1/orders",
     {
@@ -116,11 +109,8 @@ export async function POST(req: Request) {
       },
       body: JSON.stringify({
         type: "online",
-
         external_reference: orderId,
-
         total_amount: amount,
-
         processing_mode: "automatic",
 
         payer: {
@@ -137,7 +127,6 @@ export async function POST(req: Request) {
           payments: [
             {
               amount,
-
               payment_method: {
                 id: "pix",
                 type: "bank_transfer",
@@ -177,11 +166,6 @@ export async function POST(req: Request) {
   const qrCodeBase64: string | null =
     payment?.payment_method?.qr_code_base64 ?? null;
 
-  /*
-   * Guardamos o ID da ORDER do Mercado Pago.
-   * É esse ID que será utilizado posteriormente para consultar
-   * o pagamento/order e confirmar o pedido.
-   */
   const mpOrderId: string | null =
     mpData?.id ? String(mpData.id) : null;
 
@@ -197,9 +181,6 @@ export async function POST(req: Request) {
     );
   }
 
-  /*
-   * Salva os dados do Pix no pedido.
-   */
   const { error: saveError } = await supabase.rpc(
     "save_order_pix_data",
     {
@@ -221,9 +202,9 @@ export async function POST(req: Request) {
       { status: 500 }
     );
   }
+
   return NextResponse.json({
     pix_qr_code: qrCodeBase64,
     pix_copy_paste: qrCode,
   });
 }
-```
