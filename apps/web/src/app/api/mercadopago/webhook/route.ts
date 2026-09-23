@@ -54,24 +54,29 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Config ausente" }, { status: 500 });
   }
  
-  // nunca confia no corpo do webhook — busca o pagamento direto na API
-  const paymentResponse = await fetch(
-    `https://api.mercadopago.com/v1/payments/${dataId}`,
+  // nunca confia no corpo do webhook — busca o pedido direto na API.
+  // dataId aqui é o ID do PEDIDO (Orders API), não de um pagamento.
+  const orderResponse = await fetch(
+    `https://api.mercadopago.com/v1/orders/${dataId}`,
     { headers: { Authorization: `Bearer ${token}` } }
   );
  
-  if (!paymentResponse.ok) {
-    console.error("Não foi possível confirmar o pagamento", dataId);
+  if (!orderResponse.ok) {
+    console.error("Não foi possível confirmar o pedido no Mercado Pago:", dataId);
     return NextResponse.json({ ok: true });
   }
  
-  const payment = await paymentResponse.json();
+  const mpOrder = await orderResponse.json();
  
-  if (payment.status !== "approved") {
+  const payment = mpOrder?.transactions?.payments?.[0];
+  const isApproved =
+    payment?.status === "approved" || mpOrder?.status === "processed";
+ 
+  if (!isApproved) {
     return NextResponse.json({ ok: true });
   }
  
-  const orderId: string | undefined = payment.external_reference;
+  const orderId: string | undefined = mpOrder.external_reference;
  
   if (!orderId) {
     return NextResponse.json({ ok: true });
