@@ -56,14 +56,34 @@ export async function POST(req: Request) {
  
   // nunca confia no corpo do webhook — busca o pedido direto na API.
   // dataId aqui é o ID do PEDIDO (Orders API), não de um pagamento.
-  const orderResponse = await fetch(
-    `https://api.mercadopago.com/v1/orders/${dataId}`,
-    { headers: { Authorization: `Bearer ${token}` } }
-  );
+  let orderResponse: Response;
+ 
+  try {
+    orderResponse = await fetch(
+      `https://api.mercadopago.com/v1/orders/${dataId}`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+  } catch {
+    // falha de rede: devolve erro pro Mercado Pago tentar de novo depois
+    console.error("Webhook Mercado Pago: falha de rede ao consultar o pedido:", dataId);
+    return NextResponse.json({ error: "Falha temporária" }, { status: 502 });
+  }
  
   if (!orderResponse.ok) {
-    console.error("Não foi possível confirmar o pedido no Mercado Pago:", dataId);
-    return NextResponse.json({ ok: true });
+    console.error(
+      "Não foi possível confirmar o pedido no Mercado Pago:",
+      dataId,
+      orderResponse.status
+    );
+ 
+    // pedido que não existe (ex.: notificação de teste): não adianta insistir
+    if (orderResponse.status === 404 || orderResponse.status === 400) {
+      return NextResponse.json({ ok: true });
+    }
+ 
+    // qualquer outro erro (instabilidade, limite de chamadas, credencial):
+    // devolve erro pro Mercado Pago repetir o aviso, pra não perder o pagamento
+    return NextResponse.json({ error: "Falha temporária" }, { status: 502 });
   }
  
   const mpOrder = await orderResponse.json();
@@ -89,16 +109,34 @@ export async function POST(req: Request) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
  
-  const { error } = await supabase
+  const { data: updated, error } = await supabase
     .from("orders")
     .update({ status: "paid" })
     .eq("id", orderId)
     .eq("pix_payment_id", String(dataId))
-    .eq("status", "pending_payment");
+    .eq("status", "pending_payment")
+    .select("id");
  
   if (error) {
     console.error("Erro ao marcar pedido como pago:", error);
     return NextResponse.json({ error: "Erro interno" }, { status: 500 });
+  }
+ 
+  if (!updated || updated.length === 0) {
+    // nenhum pedido pendente foi atualizado: ou já estava pago (aviso repetido,
+    // normal) ou o pedido foi cancelado antes do pagamento chegar (grave)
+    const { data: current } = await supabase
+      .from("orders")
+      .select("status")
+      .eq("id", orderId)
+      .maybeSingle();
+ 
+    if (current?.status === "cancelled") {
+      console.error(
+        "ALERTA: pagamento aprovado em pedido CANCELADO. Reembolsar a cliente.",
+        { orderId, mercadoPagoOrderId: dataId }
+      );
+    }
   }
  
   return NextResponse.json({ ok: true });
