@@ -61,7 +61,18 @@ export async function POST(req: Request) {
     );
   }
  
-  const mpResponse = await fetch("https://api.mercadopago.com/v1/payments", {
+  // Modo de teste: o Mercado Pago só simula Pix em sandbox usando o e-mail
+  // de um "usuário de teste" + o nome mágico "APRO" (aprova sozinho).
+  // Em produção essa variável não deve existir, e nada disso é usado.
+  const testPayerEmail = process.env.MERCADOPAGO_TEST_PAYER_EMAIL;
+  const payerEmail = testPayerEmail || user.email;
+ 
+  const amount = (order.total_amount / 100).toFixed(2);
+ 
+  // O Mercado Pago descontinuou Pix pelo endpoint antigo (/v1/payments) em
+  // modo de teste — a API atual (Orders) é a única que permite testar Pix
+  // no sandbox, por isso usamos ela.
+  const mpResponse = await fetch("https://api.mercadopago.com/v1/orders", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -69,11 +80,24 @@ export async function POST(req: Request) {
       "X-Idempotency-Key": orderId,
     },
     body: JSON.stringify({
-      transaction_amount: order.total_amount / 100,
-      description: `Pedido MIF BRECHO #${orderId.slice(0, 8).toUpperCase()}`,
-      payment_method_id: "pix",
+      type: "online",
       external_reference: orderId,
-      payer: { email: user.email },
+      total_amount: amount,
+      description: `Pedido MIF BRECHO #${orderId.slice(0, 8).toUpperCase()}`,
+      payer: {
+        email: payerEmail,
+        // "APRO" é o valor que o Mercado Pago reconhece pra aprovar a
+        // simulação sozinho — só usado quando estamos testando
+        ...(testPayerEmail ? { first_name: "APRO" } : {}),
+      },
+      transactions: {
+        payments: [
+          {
+            amount,
+            payment_method: { id: "pix", type: "bank_transfer" },
+          },
+        ],
+      },
     }),
   });
  
@@ -87,13 +111,15 @@ export async function POST(req: Request) {
     );
   }
  
-  const qrCode: string | null =
-    mpData?.point_of_interaction?.transaction_data?.qr_code ?? null;
+  const payment = mpData?.transactions?.payments?.[0];
+  const qrCode: string | null = payment?.payment_method?.qr_code ?? null;
   const qrCodeBase64: string | null =
-    mpData?.point_of_interaction?.transaction_data?.qr_code_base64 ?? null;
-  const paymentId: string | null = mpData?.id ? String(mpData.id) : null;
+    payment?.payment_method?.qr_code_base64 ?? null;
+  // guardamos o id do PEDIDO no Mercado Pago (não do pagamento) — é o que
+  // vem no webhook pra gente confirmar depois
+  const mpOrderId: string | null = mpData?.id ? String(mpData.id) : null;
  
-  if (!qrCode || !paymentId) {
+  if (!qrCode || !mpOrderId) {
     console.error("Resposta inesperada do Mercado Pago:", mpData);
     return NextResponse.json(
       { error: "Resposta inesperada do Mercado Pago" },
@@ -103,7 +129,7 @@ export async function POST(req: Request) {
  
   const { error: saveError } = await supabase.rpc("save_order_pix_data", {
     p_order_id: orderId,
-    p_payment_id: paymentId,
+    p_payment_id: mpOrderId,
     p_qr_code: qrCodeBase64,
     p_copy_paste: qrCode,
   });
