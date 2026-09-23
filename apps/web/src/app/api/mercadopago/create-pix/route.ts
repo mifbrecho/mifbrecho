@@ -104,7 +104,7 @@ export async function POST(req: Request) {
   const mpData = await mpResponse.json();
  
   if (!mpResponse.ok) {
-    console.error("Erro Mercado Pago:", mpData);
+    console.error("Erro Mercado Pago:", JSON.stringify(mpData));
     return NextResponse.json(
       { error: "Não foi possível gerar o Pix agora" },
       { status: 502 }
