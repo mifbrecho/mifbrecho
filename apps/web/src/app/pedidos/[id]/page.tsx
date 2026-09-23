@@ -39,9 +39,13 @@ export default function PedidoDetalhePage({
   const [loggedIn, setLoggedIn] = useState(true);
   const [copied, setCopied] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+  const [pixGenerating, setPixGenerating] = useState(false);
 
   // guarda o status mais recente para só conferir de novo enquanto espera o pagamento
   const statusRef = useRef<string | null>(null);
+
+  // evita chamar duas vezes se o Pix não veio (só tenta gerar de novo uma vez)
+  const pixAttemptedRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -99,6 +103,43 @@ export default function PedidoDetalhePage({
       clearInterval(clock);
     };
   }, [id]);
+
+  // Se o pedido está aguardando Pix mas o código não veio (falhou na hora do
+  // checkout), tenta gerar de novo automaticamente, uma única vez.
+  useEffect(() => {
+    if (!order) return;
+    if (order.status !== "pending_payment" || order.pix_copy_paste) return;
+    if (pixAttemptedRef.current) return;
+    pixAttemptedRef.current = true;
+    setPixGenerating(true);
+
+    (async () => {
+      try {
+        await fetch("/api/mercadopago/create-pix", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ order_id: id }),
+        });
+      } catch (err) {
+        console.error("Erro ao tentar gerar o Pix de novo:", err);
+      }
+
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("orders")
+        .select(ORDER_DETAIL_SELECT)
+        .eq("id", id)
+        .maybeSingle();
+
+      if (!error && data) {
+        const refreshed = data as unknown as OrderRow;
+        statusRef.current = refreshed.status;
+        setOrder(refreshed);
+      }
+
+      setPixGenerating(false);
+    })();
+  }, [order, id]);
 
   function copyPix() {
     if (!order?.pix_copy_paste) return;
@@ -302,8 +343,9 @@ export default function PedidoDetalhePage({
               </>
             ) : (
               <p className="text-sm text-text-muted">
-                O código Pix aparece aqui assim que estiver disponível. Se
-                preferir, fale com a loja pelo WhatsApp.
+                {pixGenerating
+                  ? "Gerando o código Pix, um instante..."
+                  : "Não foi possível gerar o Pix agora. Fale com a loja pelo WhatsApp pra combinar o pagamento."}
               </p>
             )}
           </section>
