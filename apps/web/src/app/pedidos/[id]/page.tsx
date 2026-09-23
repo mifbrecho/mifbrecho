@@ -16,6 +16,7 @@ import {
   isPickupOrder,
   itemImageUrl,
   orderNumber,
+  pixExpiresAt,
   statusInfo,
   type OrderRow,
 } from "@/lib/orders";
@@ -209,9 +210,11 @@ export default function PedidoDetalhePage({
   const items = order.items ?? [];
   const pickup = isPickupOrder(order);
 
-  const remainingMs = order.expires_at
-    ? new Date(order.expires_at).getTime() - now
-    : null;
+  const expiresAt =
+    order.status === "pending_payment"
+      ? pixExpiresAt(order.created_at)
+      : null;
+  const remainingMs = expiresAt ? expiresAt.getTime() - now : null;
   const remainingMinutes =
     remainingMs !== null ? Math.max(Math.ceil(remainingMs / 60000), 0) : null;
 
@@ -302,13 +305,13 @@ export default function PedidoDetalhePage({
               Aguardando pagamento
             </h2>
 
-            {order.expires_at && remainingMinutes !== null && (
+            {expiresAt && remainingMinutes !== null && (
               <p className="mb-3 text-sm text-text-muted">
                 {remainingMinutes > 0 ? (
                   <>
                     Suas peças estão reservadas até{" "}
                     <strong className="text-text">
-                      {formatTime(order.expires_at)}
+                      {formatTime(expiresAt.toISOString())}
                     </strong>{" "}
                     (faltam {remainingMinutes} min).
                   </>
@@ -320,6 +323,16 @@ export default function PedidoDetalhePage({
 
             {order.pix_copy_paste ? (
               <>
+                {order.pix_qr_code && (
+                  <div className="mb-3 flex justify-center rounded-xl bg-secondary p-3">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={`data:image/png;base64,${order.pix_qr_code}`}
+                      alt="QR Code do Pix"
+                      className="h-48 w-48"
+                    />
+                  </div>
+                )}
                 <div className="mb-3 rounded-xl bg-secondary p-3">
                   <p className="break-all font-mono text-xs text-text">
                     {order.pix_copy_paste}
