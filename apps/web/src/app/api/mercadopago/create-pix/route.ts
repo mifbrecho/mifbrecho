@@ -78,7 +78,7 @@ export async function POST(req: Request) {
    * TESTE DO MERCADO PAGO
    *
    * Se MERCADOPAGO_TEST_PAYER_EMAIL estiver configurado,
-   * usa o comprador de teste e first_name = APRO.
+   * usa o comprador de teste no lugar do e-mail do usuário logado.
    */
   const testPayerEmail =
     process.env.MERCADOPAGO_TEST_PAYER_EMAIL;
@@ -116,12 +116,6 @@ export async function POST(req: Request) {
  
         payer: {
           email: payerEmail,
- 
-          ...(testPayerEmail
-            ? {
-                first_name: "APRO",
-              }
-            : {}),
         },
  
         transactions: {
