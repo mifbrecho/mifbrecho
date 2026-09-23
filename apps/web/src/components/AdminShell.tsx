@@ -9,6 +9,7 @@ const links = [
   { href: "/admin", label: "Resumo", exact: true },
   { href: "/admin/produtos", label: "Produtos", exact: false },
   { href: "/admin/pedidos", label: "Pedidos", exact: false },
+  { href: "/admin/rotas", label: "Rotas", exact: false },
   { href: "/admin/seguranca", label: "Segurança", exact: false },
 ];
 
