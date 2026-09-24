@@ -5,32 +5,73 @@ import crypto from "crypto";
 // Confere se o aviso realmente veio do Mercado Pago (evita gente forjando
 // "pagamento aprovado" chamando essa URL direto).
 // Formato oficial: https://www.mercadopago.com.br/developers/pt/docs/checkout-api/webhooks
-function isValidSignature(req: Request, dataId: string): boolean {
-  const secret = process.env.MERCADOPAGO_WEBHOOK_SECRET;
-  if (!secret) return false;
+ 
+type SignatureCheck = {
+  valid: boolean;
+  // informações seguras para diagnóstico (nunca inclui a chave nem o hash)
+  info: Record<string, unknown>;
+};
+ 
+function safeEqual(a: string, b: string): boolean {
+  const aBuf = Buffer.from(a);
+  const bBuf = Buffer.from(b);
+  if (aBuf.length !== bBuf.length) return false;
+  return crypto.timingSafeEqual(aBuf, bBuf);
+}
+ 
+function checkSignature(req: Request, dataId: string): SignatureCheck {
+  // remove espaços e aspas que às vezes sobram ao colar a chave na Vercel
+  const secret = (process.env.MERCADOPAGO_WEBHOOK_SECRET ?? "")
+    .trim()
+    .replace(/^["']+|["']+$/g, "")
+    .trim();
  
   const signatureHeader = req.headers.get("x-signature");
   const requestId = req.headers.get("x-request-id");
-  if (!signatureHeader || !requestId) return false;
  
   const parts: Record<string, string> = {};
-  for (const piece of signatureHeader.split(",")) {
-    const [key, value] = piece.split("=");
-    if (key && value) parts[key.trim()] = value.trim();
+  if (signatureHeader) {
+    for (const piece of signatureHeader.split(",")) {
+      const [key, value] = piece.split("=");
+      if (key && value) parts[key.trim()] = value.trim();
+    }
   }
  
   const ts = parts.ts;
   const hash = parts.v1;
-  if (!ts || !hash) return false;
  
-  const manifest = `id:${dataId.toLowerCase()};request-id:${requestId};ts:${ts};`;
-  const expected = crypto.createHmac("sha256", secret).update(manifest).digest("hex");
+  const info: Record<string, unknown> = {
+    secretLength: secret.length,
+    hasSignatureHeader: Boolean(signatureHeader),
+    hasRequestId: Boolean(requestId),
+    hasTs: Boolean(ts),
+    hasV1: Boolean(hash),
+    v1Length: hash ? hash.length : 0,
+    dataIdLength: dataId.length,
+    dataIdHasUppercase: dataId !== dataId.toLowerCase(),
+  };
  
-  const expectedBuf = Buffer.from(expected);
-  const hashBuf = Buffer.from(hash);
+  if (!secret || !signatureHeader || !requestId || !ts || !hash) {
+    return { valid: false, info };
+  }
  
-  if (expectedBuf.length !== hashBuf.length) return false;
-  return crypto.timingSafeEqual(expectedBuf, hashBuf);
+  // O Mercado Pago pede o id em minúsculas quando é alfanumérico;
+  // por garantia, tenta as duas formas.
+  const candidates = Array.from(new Set([dataId.toLowerCase(), dataId]));
+ 
+  for (const candidate of candidates) {
+    const manifest = `id:${candidate};request-id:${requestId};ts:${ts};`;
+    const expected = crypto
+      .createHmac("sha256", secret)
+      .update(manifest)
+      .digest("hex");
+ 
+    if (safeEqual(expected, hash)) {
+      return { valid: true, info };
+    }
+  }
+ 
+  return { valid: false, info };
 }
  
 export async function POST(req: Request) {
@@ -39,13 +80,21 @@ export async function POST(req: Request) {
  
   if (!dataId) {
     // notificação que a gente não trata — responde ok pra Mercado Pago não insistir
+    console.log("Webhook Mercado Pago: aviso sem data.id, ignorado");
     return NextResponse.json({ ok: true });
   }
  
-  if (!isValidSignature(req, dataId)) {
-    console.error("Webhook Mercado Pago: assinatura inválida ou ausente");
+  const check = checkSignature(req, dataId);
+ 
+  if (!check.valid) {
+    console.error(
+      "Webhook Mercado Pago: assinatura inválida ou ausente",
+      JSON.stringify(check.info)
+    );
     return NextResponse.json({ error: "Assinatura inválida" }, { status: 401 });
   }
+ 
+  console.log("Webhook Mercado Pago: aviso válido recebido", dataId);
  
   const token = process.env.MERCADOPAGO_ACCESS_TOKEN;
  
@@ -138,6 +187,8 @@ export async function POST(req: Request) {
       );
     }
   }
+ 
+  console.log("Webhook Mercado Pago: pedido processado", orderId);
  
   return NextResponse.json({ ok: true });
 }
