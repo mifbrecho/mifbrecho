@@ -28,6 +28,7 @@ type Product = {
   status: string;
   stock: number;
   created_at: string;
+  deleted_at?: string | null;
   images?: ProductImage[];
 };
 
@@ -122,6 +123,7 @@ export default function AdminProductsPage() {
 
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [showArchived, setShowArchived] = useState(false);
 
   const previews = useMemo(
     () => newFiles.map((file) => URL.createObjectURL(file)),
@@ -560,12 +562,28 @@ export default function AdminProductsPage() {
 
     if (deleteError) {
       if (deleteError.code === "23503") {
-        setError(
-          "Esta peça já está em algum pedido e não pode ser excluída. Use Ocultar para tirá-la da loja."
+        // A peça já apareceu em algum pedido: não dá pra apagar de
+        // verdade (quebraria o histórico de vendas), então ela é
+        // arquivada — some da lista, mas o pedido antigo continua
+        // mostrando a foto e o título certinhos.
+        const { error: archiveError } = await supabase
+          .from("products")
+          .update({ deleted_at: new Date().toISOString() })
+          .eq("id", product.id);
+
+        if (archiveError) {
+          setError(archiveError.message);
+          return;
+        }
+
+        setMessage(
+          "Essa peça já tinha pedido no histórico, então foi arquivada em vez de apagada: ela some da sua lista, mas o pedido antigo continua íntegro."
         );
-      } else {
-        setError(deleteError.message);
+        await loadData();
+        return;
       }
+
+      setError(deleteError.message);
       return;
     }
 
@@ -574,6 +592,24 @@ export default function AdminProductsPage() {
     }
 
     setMessage("Produto excluído com sucesso.");
+    await loadData();
+  }
+
+  async function restoreProduct(product: Product) {
+    setError("");
+    setMessage("");
+
+    const { error: restoreError } = await supabase
+      .from("products")
+      .update({ deleted_at: null })
+      .eq("id", product.id);
+
+    if (restoreError) {
+      setError(restoreError.message);
+      return;
+    }
+
+    setMessage("Peça restaurada.");
     await loadData();
   }
 
@@ -595,6 +631,10 @@ export default function AdminProductsPage() {
 
   const totalPhotos = existingImages.length + newFiles.length;
 
+  const visibleProducts = showArchived
+    ? products.filter((product) => product.deleted_at)
+    : products.filter((product) => !product.deleted_at);
+
   return (
     <div className="mx-auto max-w-5xl px-4 py-6">
       {!showForm && (
@@ -614,6 +654,23 @@ export default function AdminProductsPage() {
           >
             + Nova peça
           </button>
+        </div>
+      )}
+
+      {!showForm && (
+        <div className="mb-4">
+          <label className="inline-flex items-center gap-2 text-sm text-gray-600">
+            <input
+              type="checkbox"
+              checked={showArchived}
+              onChange={(event) => setShowArchived(event.target.checked)}
+              className="h-4 w-4 rounded border-gray-300"
+            />
+            Ver arquivadas
+            {showArchived
+              ? ` (${visibleProducts.length})`
+              : ""}
+          </label>
         </div>
       )}
 
@@ -917,23 +974,27 @@ export default function AdminProductsPage() {
             <div className="rounded-2xl bg-white p-8 text-center text-gray-500 shadow-sm">
               Carregando produtos...
             </div>
-          ) : products.length === 0 ? (
+          ) : visibleProducts.length === 0 ? (
             <div className="rounded-2xl bg-white p-8 text-center shadow-sm">
               <p className="font-medium text-gray-800">
-                Nenhum produto cadastrado.
+                {showArchived
+                  ? "Nenhuma peça arquivada."
+                  : "Nenhum produto cadastrado."}
               </p>
 
-              <button
-                type="button"
-                onClick={openNewProduct}
-                className="mt-4 rounded-xl bg-primary px-4 py-3 font-semibold text-white"
-              >
-                + Cadastrar primeira peça
-              </button>
+              {!showArchived && (
+                <button
+                  type="button"
+                  onClick={openNewProduct}
+                  className="mt-4 rounded-xl bg-primary px-4 py-3 font-semibold text-white"
+                >
+                  + Cadastrar primeira peça
+                </button>
+              )}
             </div>
           ) : (
             <div className="space-y-4">
-              {products.map((product) => {
+              {visibleProducts.map((product) => {
                 const status =
                   STATUS_LABEL[product.status] ?? STATUS_LABEL.hidden;
                 const cover = sortImages(product.images)[0]?.url;
@@ -968,6 +1029,12 @@ export default function AdminProductsPage() {
                             >
                               {status.label}
                             </span>
+
+                            {product.deleted_at && (
+                              <span className="rounded-full bg-gray-200 px-2 py-1 text-xs font-medium text-gray-600">
+                                Arquivada
+                              </span>
+                            )}
                           </div>
 
                           <p className="text-lg font-bold text-primary">
@@ -991,33 +1058,45 @@ export default function AdminProductsPage() {
                       </div>
 
                       <div className="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={() => openEditProduct(product)}
-                          className="rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                        >
-                          Editar
-                        </button>
-
-                        {product.status !== "sold" && (
+                        {product.deleted_at ? (
                           <button
                             type="button"
-                            onClick={() => toggleProduct(product)}
+                            onClick={() => restoreProduct(product)}
                             className="rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
                           >
-                            {product.status === "available"
-                              ? "Ocultar"
-                              : "Mostrar"}
+                            Restaurar
                           </button>
-                        )}
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => openEditProduct(product)}
+                              className="rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                            >
+                              Editar
+                            </button>
 
-                        <button
-                          type="button"
-                          onClick={() => deleteProduct(product)}
-                          className="rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
-                        >
-                          Excluir
-                        </button>
+                            {product.status !== "sold" && (
+                              <button
+                                type="button"
+                                onClick={() => toggleProduct(product)}
+                                className="rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                              >
+                                {product.status === "available"
+                                  ? "Ocultar"
+                                  : "Mostrar"}
+                              </button>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={() => deleteProduct(product)}
+                              className="rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
+                            >
+                              Excluir
+                            </button>
+                          </>
+                        )}
                       </div>
                     </div>
                   </article>
