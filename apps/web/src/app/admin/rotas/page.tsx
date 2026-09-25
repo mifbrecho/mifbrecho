@@ -21,8 +21,8 @@ type RouteOrder = {
 const SELECT =
   "id, status, shipping_street, shipping_number, shipping_complement, shipping_neighborhood, shipping_city, shipping_reference, notes, customer:profiles(full_name, phone)";
 
-// Pedidos prontos pra sair pra entrega (retirada na loja não entra aqui)
-const DELIVERABLE_STATUSES = ["paid", "preparing"];
+// Pedidos que ainda estão em algum ponto da entrega (retirada na loja não entra aqui)
+const DELIVERABLE_STATUSES = ["paid", "preparing", "shipped"];
 
 function isPickup(order: RouteOrder): boolean {
   return (order.notes ?? "").startsWith("Retirada");
@@ -44,11 +44,11 @@ export default function RotasPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    const supabase = createClient();
+
     async function load() {
       setLoading(true);
       setError("");
-
-      const supabase = createClient();
 
       const { data, error: queryError } = await supabase
         .from("orders")
@@ -69,6 +69,22 @@ export default function RotasPage() {
     }
 
     load();
+
+    // Assim que um pedido muda de status em qualquer lugar (a irmã marcando
+    // "Entregue" no painel, ou a cliente confirmando o recebimento), a
+    // lista se atualiza sozinha, sem precisar recarregar a página.
+    const channel = supabase
+      .channel("rotas-orders")
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "orders" },
+        () => load()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const groups = orders.reduce<Record<string, RouteOrder[]>>((acc, order) => {
