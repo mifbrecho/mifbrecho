@@ -68,10 +68,19 @@ function deliveryMessage(order: AdminOrder, address: string): string {
     .join("\n");
 }
 
+function normalize(text: string): string {
+  return text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
 export default function AdminPedidosPage() {
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<Filter>("all");
+  const [search, setSearch] = useState("");
   const [savingId, setSavingId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -158,8 +167,24 @@ export default function AdminPedidosPage() {
     {} as Record<OrderStatus, number>
   );
 
-  const visible =
+  const byStatus =
     filter === "all" ? orders : orders.filter((o) => o.status === filter);
+
+  const searchTerm = normalize(search);
+  const visible = searchTerm
+    ? byStatus.filter((o) => {
+        const haystack = [
+          o.customer?.full_name,
+          o.customer?.phone,
+          o.customer?.email,
+          orderNumber(o.id),
+        ]
+          .filter(Boolean)
+          .join(" ");
+
+        return normalize(haystack).includes(searchTerm);
+      })
+    : byStatus;
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-6">
@@ -179,6 +204,17 @@ export default function AdminPedidosPage() {
         >
           Atualizar
         </button>
+      </div>
+
+      {/* Busca */}
+      <div className="mb-4">
+        <input
+          type="text"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Buscar por nome, telefone ou nº do pedido..."
+          className="w-full rounded-xl border border-primary-light bg-white px-4 py-3 text-sm text-text placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-primary/30"
+        />
       </div>
 
       {/* Filtros */}
@@ -231,6 +267,8 @@ export default function AdminPedidosPage() {
         <div className="rounded-2xl bg-white p-8 text-center text-text-muted shadow-sm">
           {orders.length === 0
             ? "Nenhum pedido ainda. Quando uma cliente comprar, ele aparece aqui."
+            : searchTerm
+            ? "Nenhum pedido encontrado pra essa busca."
             : "Nenhum pedido neste filtro."}
         </div>
       ) : (
