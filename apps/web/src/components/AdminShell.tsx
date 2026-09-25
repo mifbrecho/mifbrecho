@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import PaidOrderAlert from "@/components/PaidOrderAlert";
 
 const links = [
   { href: "/admin", label: "Resumo", exact: true },
@@ -195,6 +196,8 @@ export default function AdminShell({
 
   return (
     <div className="min-h-screen bg-background">
+      <PaidOrderAlert />
+
       <header className="bg-primary text-white">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3">
           <Link href="/admin" className="text-lg font-bold">
