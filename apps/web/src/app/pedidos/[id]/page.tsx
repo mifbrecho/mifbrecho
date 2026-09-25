@@ -41,6 +41,8 @@ export default function PedidoDetalhePage({
   const [copied, setCopied] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const [pixGenerating, setPixGenerating] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [confirmError, setConfirmError] = useState("");
 
   // guarda o status mais recente para só conferir de novo enquanto espera o pagamento
   const statusRef = useRef<string | null>(null);
@@ -148,6 +150,29 @@ export default function PedidoDetalhePage({
     navigator.clipboard.writeText(order.pix_copy_paste);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  }
+
+  async function confirmDelivery() {
+    if (!order) return;
+
+    setConfirming(true);
+    setConfirmError("");
+
+    const supabase = createClient();
+    const { error } = await supabase.rpc("confirm_order_delivery", {
+      p_order_id: order.id,
+    });
+
+    if (error) {
+      setConfirmError(
+        "Não foi possível confirmar agora. Tenta de novo em instantes."
+      );
+      setConfirming(false);
+      return;
+    }
+
+    setOrder((current) => (current ? { ...current, status: "delivered" } : current));
+    setConfirming(false);
   }
 
   const backLink = (
@@ -447,6 +472,29 @@ export default function PedidoDetalhePage({
             </>
           )}
         </section>
+
+        {order.status === "shipped" && (
+          <section className="mb-6 rounded-2xl border border-primary-light bg-white p-5 text-center shadow-sm">
+            <p className="mb-3 text-sm text-text-muted">
+              {pickup
+                ? "Já pegou sua peça na loja?"
+                : "Sua peça já chegou até você?"}
+            </p>
+
+            <button
+              type="button"
+              onClick={confirmDelivery}
+              disabled={confirming}
+              className="w-full rounded-full bg-primary py-3 font-semibold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {confirming ? "Confirmando..." : "Já recebi meu pedido"}
+            </button>
+
+            {confirmError && (
+              <p className="mt-2 text-xs text-red-600">{confirmError}</p>
+            )}
+          </section>
+        )}
 
         <a
           href={orderWhatsapp}
