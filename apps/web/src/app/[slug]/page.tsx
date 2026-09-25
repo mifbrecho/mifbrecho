@@ -17,7 +17,7 @@ function H2({ children }: { children: React.ReactNode }) {
   return <h2 className="mb-2 text-lg font-semibold text-text">{children}</h2>;
 }
 
-const UPDATED = "20 de setembro de 2026";
+const UPDATED = "24 de setembro de 2026";
 
 const PAGES: Record<string, InfoPage> = {
   sobre: {
@@ -193,51 +193,93 @@ const PAGES: Record<string, InfoPage> = {
       <>
         <p>
           Esta página explica como a MIF BRECHO usa os seus dados, de acordo com
-          a Lei Geral de Proteção de Dados (LGPD). Última atualização:{" "}
-          {UPDATED}.
+          a Lei Geral de Proteção de Dados (LGPD, Lei 13.709/2018). Última
+          atualização: {UPDATED}.
         </p>
+        <div>
+          <H2>Quem é responsável pelos seus dados</H2>
+          <p>
+            {STORE.legalName}, CPF {STORE.cpf}, {STORE.address}, responsável
+            pela MIF BRECHO. Para qualquer assunto sobre os seus dados, fale
+            pelo{" "}
+            <a
+              href={`mailto:${STORE.email}`}
+              className="font-semibold text-primary underline"
+            >
+              {STORE.email}
+            </a>{" "}
+            ou pelo WhatsApp {STORE.whatsappDisplay}.
+          </p>
+        </div>
         <div>
           <H2>Quais dados coletamos</H2>
           <p>
             Nome, e-mail, telefone, endereço de entrega, pedidos e peças
-            favoritas. A sua senha é guardada de forma protegida.
+            favoritas. A sua senha é guardada de forma protegida (criptografada)
+            e nem a MIF BRECHO tem acesso a ela.
           </p>
         </div>
         <div>
-          <H2>Para que usamos</H2>
+          <H2>Para que usamos e por que podemos usar</H2>
           <p>
-            Para criar a sua conta, processar pedidos e pagamentos, combinar a
-            entrega e falar com você sobre o seu pedido.
+            Usamos os seus dados para criar a sua conta, processar pedidos e
+            pagamentos, combinar a entrega e falar com você sobre o seu pedido.
+            Isso é feito com base na execução do contrato de compra e venda
+            entre você e a MIF BRECHO (art. 7º, V, da LGPD) — ou seja, são
+            dados necessários para a compra acontecer, não pedimos consentimento
+            à parte para isso.
           </p>
         </div>
         <div>
-          <H2>Com quem compartilhamos</H2>
+          <H2>Com quem compartilhamos e onde ficam guardados</H2>
           <p>
-            Apenas com quem precisa para a compra acontecer: os serviços que
-            mantêm o site funcionando (hospedagem, banco de dados e envio de
-            e-mails), o serviço de pagamento por Pix e quem faz a entrega
-            (Correios ou motoboy). Não vendemos os seus dados.
+            Compartilhamos apenas com quem precisa para a compra acontecer: o
+            Mercado Pago (para processar o Pix), o Supabase (banco de dados e
+            login, empresa internacional com servidores fora do Brasil) e a
+            Vercel (hospedagem do site, idem), além de quem faz a entrega
+            (Correios ou motoboy). Esses serviços têm as próprias regras de
+            segurança e privacidade. Não vendemos nem alugamos os seus dados
+            para ninguém.
+          </p>
+        </div>
+        <div>
+          <H2>Por quanto tempo guardamos</H2>
+          <p>
+            Guardamos os seus dados enquanto sua conta existir. Dados de
+            pedidos já pagos podem ser mantidos por mais tempo para cumprir
+            obrigações fiscais e de defesa em caso de disputa, mesmo que você
+            apague a conta.
           </p>
         </div>
         <div>
           <H2>Cookies</H2>
           <p>
             Usamos apenas cookies necessários para manter você logada e guardar
-            o seu carrinho.
+            o seu carrinho. Não usamos cookies de propaganda ou de rastreamento
+            de terceiros.
           </p>
         </div>
         <div>
           <H2>Seus direitos</H2>
           <p>
-            Você pode pedir para ver, corrigir ou apagar os seus dados a
-            qualquer momento. Basta escrever para{" "}
+            Você pode pedir para ver, corrigir, apagar ou pedir uma cópia dos
+            seus dados a qualquer momento, conforme o art. 18 da LGPD. Basta
+            escrever para{" "}
             <a
               href={`mailto:${STORE.email}`}
               className="font-semibold text-primary underline"
             >
               {STORE.email}
             </a>
-            .
+            . Respondemos em até 15 dias.
+          </p>
+        </div>
+        <div>
+          <H2>Se algo der errado</H2>
+          <p>
+            Se você achar que seus dados não foram tratados corretamente, pode
+            reclamar diretamente com a gente pelos canais acima, ou junto à
+            Autoridade Nacional de Proteção de Dados (ANPD).
           </p>
         </div>
       </>
@@ -250,6 +292,22 @@ const PAGES: Record<string, InfoPage> = {
     body: (
       <>
         <p>Ao usar o site e comprar na MIF BRECHO, você concorda com estas regras. Última atualização: {UPDATED}.</p>
+        <div>
+          <H2>Quem vende</H2>
+          <p>
+            A MIF BRECHO é operada por {STORE.legalName}, CPF {STORE.cpf}, com
+            endereço em {STORE.address}, conforme exige o Decreto nº 7.962/2013
+            (regras para lojas virtuais).
+          </p>
+        </div>
+        <div>
+          <H2>Quem pode comprar</H2>
+          <p>
+            É preciso ter 18 anos ou mais (ou ser emancipada) para criar uma
+            conta e comprar na MIF BRECHO. Você é responsável por garantir que
+            os dados informados no cadastro são verdadeiros.
+          </p>
+        </div>
         <div>
           <H2>Peças e preços</H2>
           <p>
@@ -297,6 +355,59 @@ const PAGES: Record<string, InfoPage> = {
               Política de privacidade
             </Link>
             .
+          </p>
+        </div>
+        <div>
+          <H2>Responsabilidade</H2>
+          <p>
+            Fazemos o possível para descrever e fotografar as peças com
+            fidelidade. Ainda assim, por serem peças usadas, pequenas variações
+            de tom ou textura em relação à foto podem acontecer e não são
+            consideradas defeito. A MIF BRECHO não se responsabiliza por atrasos
+            causados por terceiros (Correios, motoboy) fora do nosso controle,
+            mas ajuda você a resolver qualquer problema de entrega.
+          </p>
+        </div>
+        <div>
+          <H2>Se surgir algum problema</H2>
+          <p>
+            Primeiro, fale com a gente pelo WhatsApp{" "}
+            <a
+              href={whatsappLink("Olá! Preciso de ajuda com um pedido da MIF BRECHO.")}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-primary underline"
+            >
+              {STORE.whatsappDisplay}
+            </a>{" "}
+            — a maioria das coisas se resolve rápido assim. Se não for
+            possível resolver diretamente, você também pode registrar uma
+            reclamação em{" "}
+            <a
+              href="https://www.consumidor.gov.br"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-primary underline"
+            >
+              consumidor.gov.br
+            </a>{" "}
+            ou no Procon da sua cidade.
+          </p>
+        </div>
+        <div>
+          <H2>Mudanças nestes termos</H2>
+          <p>
+            Podemos atualizar estes termos de vez em quando, principalmente se
+            a lei mudar ou o site ganhar novas funcionalidades. A data da
+            última atualização sempre aparece no topo desta página.
+          </p>
+        </div>
+        <div>
+          <H2>Legislação e foro</H2>
+          <p>
+            Estes termos seguem as leis brasileiras, especialmente o Código de
+            Defesa do Consumidor. Em caso de disputa judicial, fica eleito o
+            foro da comarca de {STORE.city}.
           </p>
         </div>
         <p>
