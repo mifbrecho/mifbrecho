@@ -1,304 +1,186 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import PaidOrderAlert from "@/components/PaidOrderAlert";
+import { formatPrice } from "@/lib/utils";
+import { orderNumber } from "@/lib/orders";
 
-const links = [
-  { href: "/admin", label: "Resumo", exact: true },
-  { href: "/admin/produtos", label: "Produtos", exact: false },
-  { href: "/admin/pedidos", label: "Pedidos", exact: false },
-  { href: "/admin/rotas", label: "Rotas", exact: false },
-  { href: "/admin/seguranca", label: "Segurança", exact: false },
-];
-
-type PushState = "checking" | "unsupported" | "off" | "on" | "denied" | "busy";
-
-/** Converte a chave pública (texto) no formato que o navegador pede */
-function urlBase64ToUint8Array(base64: string): Uint8Array {
-  const padding = "=".repeat((4 - (base64.length % 4)) % 4);
-  const raw = window.atob((base64 + padding).replace(/-/g, "+").replace(/_/g, "/"));
-
-  return Uint8Array.from(raw, (char) => char.charCodeAt(0));
-}
-
-type InstallEvent = Event & {
-  prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+type PaidAlert = {
+  id: string;
+  orderId: string;
+  total: number;
 };
 
-export default function AdminShell({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  const pathname = usePathname();
-  const [leaving, setLeaving] = useState(false);
-  const [installEvent, setInstallEvent] = useState<InstallEvent | null>(null);
-  const [pushState, setPushState] = useState<PushState>("checking");
-  const [pushError, setPushError] = useState("");
+/**
+ * Avisa quem está com o painel aberto sempre que um pedido é marcado como
+ * pago: toca um som e mostra um cartão na tela. Não depende de notificação
+ * push do sistema (Google/Apple) — funciona em qualquer navegador, incluindo
+ * celulares sem os serviços do Google. Fica "escutando" via Supabase
+ * Realtime, então só dispara para pedidos pagos DEPOIS que o painel foi
+ * aberto (não repete avisos antigos).
+ */
+export default function PaidOrderAlert() {
+  const [alerts, setAlerts] = useState<PaidAlert[]>([]);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const unlockedRef = useRef(false);
 
-  // Descobre se este aparelho já recebe os avisos de pedido
-  useEffect(() => {
-    async function checkPush() {
-      if (
-        !("serviceWorker" in navigator) ||
-        !("PushManager" in window) ||
-        !("Notification" in window)
-      ) {
-        setPushState("unsupported");
-        return;
-      }
-
-      if (Notification.permission === "denied") {
-        setPushState("denied");
-        return;
-      }
-
-      try {
-        const registration = await navigator.serviceWorker.ready;
-        const subscription = await registration.pushManager.getSubscription();
-
-        setPushState(subscription ? "on" : "off");
-      } catch {
-        setPushState("off");
-      }
-    }
-
-    checkPush();
-  }, []);
-
-  async function enablePush() {
-    setPushError("");
-    setPushState("busy");
-
+  function getAudioContext(): AudioContext | null {
     try {
-      const permission = await Notification.requestPermission();
-
-      if (permission !== "granted") {
-        setPushState(permission === "denied" ? "denied" : "off");
-        return;
-      }
-
-      const response = await fetch("/api/push", { cache: "no-store" });
-
-      if (!response.ok) {
-        throw new Error("Os avisos ainda não estão ativados no servidor.");
-      }
-
-      const { publicKey } = await response.json();
-      const registration = await navigator.serviceWorker.ready;
-
-      // começa do zero para usar sempre a chave atual
-      const existing = await registration.pushManager.getSubscription();
-      if (existing) await existing.unsubscribe();
-
-      const subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(publicKey) as unknown as BufferSource,
-      });
-
-      const data = subscription.toJSON();
-      const supabase = createClient();
-
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user || !data.endpoint || !data.keys?.p256dh || !data.keys?.auth) {
-        throw new Error("Não foi possível registrar este aparelho.");
-      }
-
-      const { error } = await supabase.from("push_subscriptions").upsert(
-        {
-          user_id: user.id,
-          endpoint: data.endpoint,
-          p256dh: data.keys.p256dh,
-          auth: data.keys.auth,
-        },
-        { onConflict: "endpoint" }
-      );
-
-      if (error) throw new Error(error.message);
-
-      setPushState("on");
-    } catch (err) {
-      console.error("Erro ao ativar avisos:", err);
-      setPushError(
-        err instanceof Error ? err.message : "Não foi possível ativar os avisos."
-      );
-      setPushState("off");
+      type WebkitWindow = Window & { webkitAudioContext?: typeof AudioContext };
+      const Ctx = window.AudioContext || (window as WebkitWindow).webkitAudioContext;
+      if (!Ctx) return null;
+      if (!audioCtxRef.current) audioCtxRef.current = new Ctx();
+      return audioCtxRef.current;
+    } catch {
+      return null;
     }
   }
 
-  async function disablePush() {
-    setPushError("");
-    setPushState("busy");
-
-    try {
-      const registration = await navigator.serviceWorker.ready;
-      const subscription = await registration.pushManager.getSubscription();
-
-      if (subscription) {
-        const endpoint = subscription.endpoint;
-        await subscription.unsubscribe();
-
-        const supabase = createClient();
-        await supabase.from("push_subscriptions").delete().eq("endpoint", endpoint);
-      }
-
-      setPushState("off");
-    } catch (err) {
-      console.error("Erro ao desligar avisos:", err);
-      setPushState("on");
-    }
-  }
-
-  // No Android/computador o navegador avisa quando dá para instalar o app do painel
+  // Os navegadores só deixam tocar som depois de alguma interação da
+  // pessoa na página. Aproveitamos o primeiro toque/clique/tecla pra
+  // "destravar" o áudio, assim quando o aviso real chegar o som já sai.
   useEffect(() => {
-    function onBeforeInstall(event: Event) {
-      event.preventDefault();
-      setInstallEvent(event as InstallEvent);
+    function unlock() {
+      if (unlockedRef.current) return;
+      const ctx = getAudioContext();
+      if (ctx?.state === "suspended") ctx.resume();
+      unlockedRef.current = true;
     }
 
-    function onInstalled() {
-      setInstallEvent(null);
-    }
-
-    window.addEventListener("beforeinstallprompt", onBeforeInstall);
-    window.addEventListener("appinstalled", onInstalled);
+    window.addEventListener("pointerdown", unlock);
+    window.addEventListener("keydown", unlock);
 
     return () => {
-      window.removeEventListener("beforeinstallprompt", onBeforeInstall);
-      window.removeEventListener("appinstalled", onInstalled);
+      window.removeEventListener("pointerdown", unlock);
+      window.removeEventListener("keydown", unlock);
     };
   }, []);
 
-  async function installApp() {
-    if (!installEvent) return;
+  const playBeep = useCallback(() => {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    if (ctx.state === "suspended") ctx.resume();
 
-    await installEvent.prompt();
-    await installEvent.userChoice;
+    const now = ctx.currentTime;
 
-    setInstallEvent(null);
-  }
+    // Duas notas curtas, tipo campainha — não precisa de nenhum arquivo
+    // de áudio, então funciona offline e não depende de baixar nada.
+    [
+      { start: 0, freq: 880 },
+      { start: 0.18, freq: 1175 },
+    ].forEach(({ start, freq }) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
 
-  async function signOut() {
-    setLeaving(true);
+      osc.type = "sine";
+      osc.frequency.value = freq;
 
+      gain.gain.setValueAtTime(0, now + start);
+      gain.gain.linearRampToValueAtTime(0.35, now + start + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + start + 0.3);
+
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(now + start);
+      osc.stop(now + start + 0.32);
+    });
+  }, []);
+
+  const dismiss = useCallback((id: string) => {
+    setAlerts((current) => current.filter((a) => a.id !== id));
+  }, []);
+
+  // Pisca o título da aba enquanto tiver aviso não visto, pra dar pra
+  // perceber mesmo com o painel em outra aba ou minimizado. O som NÃO
+  // entra nesse loop — ele toca uma única vez, no momento em que o
+  // pedido chega (ver handleNewPaidOrder abaixo).
+  useEffect(() => {
+    const originalTitle = document.title;
+
+    if (alerts.length === 0) {
+      document.title = originalTitle.replace(/^🔔 /, "");
+      return;
+    }
+
+    let flip = false;
+    const titleInterval = window.setInterval(() => {
+      flip = !flip;
+      document.title = flip ? `🔔 Novo pedido! (${alerts.length})` : originalTitle;
+    }, 1500);
+
+    return () => {
+      window.clearInterval(titleInterval);
+      document.title = originalTitle;
+    };
+  }, [alerts.length]);
+
+  // Escuta em tempo real qualquer pedido que vire "paid" (tanto uma
+  // atualização de status quanto, por garantia, um pedido já criado como
+  // pago). Isso cobre o caminho normal: pending_payment -> paid quando o
+  // Mercado Pago confirma o Pix.
+  useEffect(() => {
     const supabase = createClient();
-    await supabase.auth.signOut();
 
-    window.location.href = "/";
-  }
+    function handleNewPaidOrder(row: { id: string; total_amount: number }) {
+      playBeep(); // toca uma vez só, aqui — não em loop
+      setAlerts((current) => [
+        { id: `${row.id}-${Date.now()}`, orderId: row.id, total: row.total_amount },
+        ...current,
+      ]);
+    }
+
+    const channel = supabase
+      .channel("admin-pedidos-pagos")
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "orders", filter: "status=eq.paid" },
+        (payload) => handleNewPaidOrder(payload.new as { id: string; total_amount: number })
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "orders", filter: "status=eq.paid" },
+        (payload) => handleNewPaidOrder(payload.new as { id: string; total_amount: number })
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [playBeep]);
+
+  if (alerts.length === 0) return null;
 
   return (
-    <div className="min-h-screen bg-background">
-      <PaidOrderAlert />
+    <div className="fixed inset-x-0 top-0 z-[9999] flex flex-col items-center gap-2 p-3">
+      {alerts.map((alert) => (
+        <div
+          key={alert.id}
+          className="flex w-full max-w-md items-center justify-between gap-3 rounded-2xl border border-green-300 bg-green-50 px-4 py-3 shadow-lg"
+        >
+          <div className="min-w-0">
+            <p className="font-bold text-green-800">💰 Novo pedido pago!</p>
+            <p className="text-sm text-green-700">
+              Pedido #{orderNumber(alert.orderId)} · {formatPrice(alert.total)}
+            </p>
+          </div>
 
-      <header className="bg-primary text-white">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3">
-          <Link href="/admin" className="text-lg font-bold">
-            MIF BRECHO{" "}
-            <span className="text-sm font-normal text-white/80">Admin</span>
-          </Link>
-
-          <div className="flex flex-wrap items-center justify-end gap-2 text-sm">
-            {pushState === "off" && (
-              <button
-                type="button"
-                onClick={enablePush}
-                className="rounded-lg bg-white/10 px-3 py-2 hover:bg-white/20"
-              >
-                Ativar avisos
-              </button>
-            )}
-
-            {pushState === "busy" && (
-              <span className="rounded-lg bg-white/10 px-3 py-2 opacity-70">
-                Aguarde...
-              </span>
-            )}
-
-            {pushState === "on" && (
-              <button
-                type="button"
-                onClick={disablePush}
-                title="Toque para desligar os avisos"
-                className="rounded-lg bg-white/10 px-3 py-2 hover:bg-white/20"
-              >
-                🔔 Avisos ligados
-              </button>
-            )}
-
-            {pushState === "denied" && (
-              <span className="rounded-lg bg-white/10 px-3 py-2 opacity-80">
-                Avisos bloqueados no navegador
-              </span>
-            )}
-
-            {installEvent && (
-              <button
-                type="button"
-                onClick={installApp}
-                className="rounded-lg bg-white/10 px-3 py-2 hover:bg-white/20"
-              >
-                Instalar app
-              </button>
-            )}
-
-            <Link
-              href="/"
-              className="rounded-lg bg-white/10 px-3 py-2 hover:bg-white/20"
+          <div className="flex flex-shrink-0 items-center gap-2">
+            <a
+              href="/admin/pedidos?status=paid"
+              onClick={() => dismiss(alert.id)}
+              className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90"
             >
-              Ver loja
-            </Link>
-
+              Ver
+            </a>
             <button
               type="button"
-              onClick={signOut}
-              disabled={leaving}
-              className="rounded-lg bg-white px-3 py-2 font-semibold text-primary hover:opacity-90 disabled:opacity-60"
+              onClick={() => dismiss(alert.id)}
+              className="rounded-lg bg-white px-2 py-1.5 text-xs text-green-700 hover:bg-green-100"
             >
-              {leaving ? "Saindo..." : "Sair"}
+              OK
             </button>
           </div>
         </div>
-
-        <nav className="mx-auto flex max-w-5xl gap-1 px-4 pb-2">
-          {links.map((link) => {
-            const active = link.exact
-              ? pathname === link.href
-              : pathname.startsWith(link.href);
-
-            return (
-              <Link
-                key={link.href}
-                href={link.href}
-                className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
-                  active
-                    ? "bg-white text-primary"
-                    : "text-white/85 hover:bg-white/15"
-                }`}
-              >
-                {link.label}
-              </Link>
-            );
-          })}
-        </nav>
-      </header>
-
-      {pushError && (
-        <div className="mx-auto max-w-5xl px-4 pt-3">
-          <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
-            {pushError}
-          </p>
-        </div>
-      )}
-
-      <main>{children}</main>
+      ))}
     </div>
   );
 }
