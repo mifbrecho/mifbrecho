@@ -267,7 +267,7 @@ export default function AdminShell({
           </div>
         </div>
 
-        <nav className="mx-auto flex max-w-5xl gap-1 px-4 pb-2">
+        <nav className="mx-auto flex max-w-5xl gap-1 overflow-x-auto px-4 pb-2 [&::-webkit-scrollbar]:hidden">
           {links.map((link) => {
             const active = link.exact
               ? pathname === link.href
@@ -277,7 +277,7 @@ export default function AdminShell({
               <Link
                 key={link.href}
                 href={link.href}
-                className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
+                className={`flex-shrink-0 whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition ${
                   active
                     ? "bg-white text-primary"
                     : "text-white/85 hover:bg-white/15"
