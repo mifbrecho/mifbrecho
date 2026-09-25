@@ -8,6 +8,11 @@ export const STORE = {
   instagramHandle: "@mifbrecho_",
   email: "mifbrecho@gmail.com",
   city: "Campo Grande - MS",
+  // Identificação do fornecedor, exigida pelo Decreto 7.962/2013 (art. 2º),
+  // por vender como pessoa física (sem CNPJ).
+  legalName: "Miriã Stefani Costa Diniz",
+  cpf: "074.116.061-70",
+  address: "Rua General Valter Gustavo Escheneek, 403 — Campo Grande - MS",
 } as const;
  
 /** Link do WhatsApp. Sem número, abre o WhatsApp para escolher o contato. */
