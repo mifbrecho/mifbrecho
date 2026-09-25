@@ -1,3 +1,227 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
+import { formatPrice } from "@/lib/utils";
+import {
+  formatOrderDate,
+  itemImageUrl,
+  orderNumber,
+  statusInfo,
+  type OrderRow,
+} from "@/lib/orders";
+import type { OrderStatus } from "@mifre/shared";
+
+type AdminOrder = OrderRow & {
+  customer: {
+    full_name: string | null;
+    phone: string | null;
+    email: string | null;
+  } | null;
+};
+
+type Filter = "all" | OrderStatus;
+
+const STATUS_ORDER: OrderStatus[] = [
+  "pending_payment",
+  "paid",
+  "preparing",
+  "shipped",
+  "delivered",
+  "cancelled",
+];
+
+const ADMIN_LABEL: Record<OrderStatus, string> = {
+  pending_payment: "Aguardando Pix",
+  paid: "Pago — separar",
+  preparing: "Em separação",
+  shipped: "Enviado",
+  delivered: "Entregue",
+  cancelled: "Cancelado",
+};
+
+const SELECT = `*, customer:profiles(full_name, phone, email), items:order_items(id, quantity, unit_price, product:products(id, title, size, images:product_images(url, is_primary, sort_order)))`;
+
+function whatsappLink(phone: string | null): string | null {
+  if (!phone) return null;
+
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length < 10) return null;
+
+  return `https://wa.me/${digits.startsWith("55") ? digits : `55${digits}`}`;
+}
+
+export default function AdminPedidosPage() {
+  const [orders, setOrders] = useState<AdminOrder[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<Filter>("all");
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+
+  async function loadOrders() {
+    setLoading(true);
+    setError("");
+
+    const supabase = createClient();
+
+    const { data, error: queryError } = await supabase
+      .from("orders")
+      .select(SELECT)
+      .order("created_at", { ascending: false });
+
+    if (queryError) {
+      setError(queryError.message);
+    } else {
+      setOrders((data ?? []) as unknown as AdminOrder[]);
+    }
+
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    // Abre já filtrado quando vem do resumo (ex.: /admin/pedidos?status=paid)
+    const fromUrl = new URLSearchParams(window.location.search).get("status");
+
+    if (fromUrl && STATUS_ORDER.includes(fromUrl as OrderStatus)) {
+      setFilter(fromUrl as OrderStatus);
+    }
+
+    loadOrders();
+  }, []);
+
+  async function changeStatus(order: AdminOrder, newStatus: OrderStatus) {
+    if (newStatus === order.status) return;
+
+    if (newStatus === "cancelled") {
+      const confirmed = window.confirm(
+        `Cancelar o pedido #${orderNumber(order.id)}?\n\nAtenção: por enquanto o cancelamento só muda o status. Se precisar, volte a peça ao estoque em Produtos.`
+      );
+
+      if (!confirmed) return;
+    }
+
+    setError("");
+    setMessage("");
+    setSavingId(order.id);
+
+    const previous = order.status;
+
+    setOrders((current) =>
+      current.map((o) => (o.id === order.id ? { ...o, status: newStatus } : o))
+    );
+
+    const supabase = createClient();
+
+    const { error: updateError } = await supabase
+      .from("orders")
+      .update({ status: newStatus })
+      .eq("id", order.id);
+
+    if (updateError) {
+      setOrders((current) =>
+        current.map((o) => (o.id === order.id ? { ...o, status: previous } : o))
+      );
+      setError(`Não foi possível mudar o status: ${updateError.message}`);
+    } else {
+      setMessage(
+        `Pedido #${orderNumber(order.id)} agora está: ${ADMIN_LABEL[newStatus]}.`
+      );
+    }
+
+    setSavingId(null);
+  }
+
+  const counts = STATUS_ORDER.reduce(
+    (acc, s) => ({ ...acc, [s]: orders.filter((o) => o.status === s).length }),
+    {} as Record<OrderStatus, number>
+  );
+
+  const visible =
+    filter === "all" ? orders : orders.filter((o) => o.status === filter);
+
+  return (
+    <div className="mx-auto max-w-3xl px-4 py-6">
+      <div className="mb-5 flex items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-text">Pedidos</h1>
+          <p className="text-sm text-text-muted">
+            Acompanhe e atualize o andamento de cada pedido.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={loadOrders}
+          disabled={loading}
+          className="rounded-lg border border-primary-light bg-white px-3 py-2 text-sm text-text hover:bg-secondary disabled:opacity-60"
+        >
+          Atualizar
+        </button>
+      </div>
+
+      {/* Filtros */}
+      <div className="mb-5 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => setFilter("all")}
+          className={`rounded-full px-3 py-1.5 text-xs font-medium ${
+            filter === "all"
+              ? "bg-primary text-white"
+              : "bg-white text-text-muted border border-primary-light"
+          }`}
+        >
+          Todos ({orders.length})
+        </button>
+
+        {STATUS_ORDER.map((s) => (
+          <button
+            key={s}
+            type="button"
+            onClick={() => setFilter(s)}
+            className={`rounded-full px-3 py-1.5 text-xs font-medium ${
+              filter === s
+                ? "bg-primary text-white"
+                : "bg-white text-text-muted border border-primary-light"
+            }`}
+          >
+            {ADMIN_LABEL[s]} ({counts[s] ?? 0})
+          </button>
+        ))}
+      </div>
+
+      {message && (
+        <div className="mb-4 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+          {message}
+        </div>
+      )}
+
+      {error && (
+        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
+      {loading ? (
+        <div className="rounded-2xl bg-white p-8 text-center text-text-muted shadow-sm">
+          Carregando pedidos...
+        </div>
+      ) : visible.length === 0 ? (
+        <div className="rounded-2xl bg-white p-8 text-center text-text-muted shadow-sm">
+          {orders.length === 0
+            ? "Nenhum pedido ainda. Quando uma cliente comprar, ele aparece aqui."
+            : "Nenhum pedido neste filtro."}
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {visible.map((order) => {
+            const info = statusInfo(order.status);
+            const customer = order.customer;
+            const wa = whatsappLink(customer?.phone ?? null);
+
+            const address = [
+              [order.shipping_street, order.shipping_number]
+                .filter(Boolean)
                 .join(", "),
               order.shipping_complement,
               order.shipping_neighborhood,
