@@ -89,9 +89,10 @@ export default function PaidOrderAlert() {
     setAlerts((current) => current.filter((a) => a.id !== id));
   }, []);
 
-  // Enquanto tiver aviso não visto: repete o som de tempos em tempos e
-  // pisca o título da aba, pra dar pra perceber mesmo com o painel em
-  // outra aba ou minimizado.
+  // Pisca o título da aba enquanto tiver aviso não visto, pra dar pra
+  // perceber mesmo com o painel em outra aba ou minimizado. O som NÃO
+  // entra nesse loop — ele toca uma única vez, no momento em que o
+  // pedido chega (ver handleNewPaidOrder abaixo).
   useEffect(() => {
     const originalTitle = document.title;
 
@@ -100,9 +101,6 @@ export default function PaidOrderAlert() {
       return;
     }
 
-    playBeep();
-    const soundInterval = window.setInterval(playBeep, 12000);
-
     let flip = false;
     const titleInterval = window.setInterval(() => {
       flip = !flip;
@@ -110,12 +108,10 @@ export default function PaidOrderAlert() {
     }, 1500);
 
     return () => {
-      window.clearInterval(soundInterval);
       window.clearInterval(titleInterval);
       document.title = originalTitle;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [alerts.length, playBeep]);
+  }, [alerts.length]);
 
   // Escuta em tempo real qualquer pedido que vire "paid" (tanto uma
   // atualização de status quanto, por garantia, um pedido já criado como
@@ -125,6 +121,7 @@ export default function PaidOrderAlert() {
     const supabase = createClient();
 
     function handleNewPaidOrder(row: { id: string; total_amount: number }) {
+      playBeep(); // toca uma vez só, aqui — não em loop
       setAlerts((current) => [
         { id: `${row.id}-${Date.now()}`, orderId: row.id, total: row.total_amount },
         ...current,
@@ -148,7 +145,7 @@ export default function PaidOrderAlert() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [playBeep]);
 
   if (alerts.length === 0) return null;
 
