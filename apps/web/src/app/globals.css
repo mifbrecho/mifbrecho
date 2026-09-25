@@ -1,5 +1,5 @@
 @import "tailwindcss";
-
+ 
 :root {
   --color-primary: #e91e63;
   --color-primary-light: #f8bbd9;
@@ -11,7 +11,7 @@
   --color-text: #4a148c;
   --color-text-muted: #7b1fa2;
 }
-
+ 
 @theme inline {
   --color-primary: var(--color-primary);
   --color-primary-light: var(--color-primary-light);
@@ -25,13 +25,19 @@
   --font-sans: "Nunito", system-ui, sans-serif;
   --font-heading: "Poppins", system-ui, sans-serif;
 }
-
+ 
 body {
   background-color: var(--color-background);
   color: var(--color-text);
   font-family: var(--font-sans);
 }
-
+ 
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-heading);
+}
+ 
+/* Trava a página na largura da tela: evita que qualquer elemento (nav,
+   cartões, avisos fixos) force uma rolagem lateral no celular. */
+html, body {
+  overflow-x: hidden;
 }
