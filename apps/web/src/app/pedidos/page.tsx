@@ -1,343 +1,189 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
+import Image from "next/image";
+import { Header } from "@/components/Header";
 import { createClient } from "@/lib/supabase/client";
 import { formatPrice } from "@/lib/utils";
 import {
+  ORDER_LIST_SELECT,
   formatOrderDate,
   itemImageUrl,
   orderNumber,
   statusInfo,
   type OrderRow,
 } from "@/lib/orders";
-import type { OrderStatus } from "@mifre/shared";
 
-type AdminOrder = OrderRow & {
-  customer: {
-    full_name: string | null;
-    phone: string | null;
-    email: string | null;
-  } | null;
-};
+type AuthState = "checking" | "guest" | "ready";
 
-type Filter = "all" | OrderStatus;
-
-const STATUS_ORDER: OrderStatus[] = [
-  "pending_payment",
-  "paid",
-  "preparing",
-  "shipped",
-  "delivered",
-  "cancelled",
-];
-
-const ADMIN_LABEL: Record<OrderStatus, string> = {
-  pending_payment: "Aguardando Pix",
-  paid: "Pago — separar",
-  preparing: "Em separação",
-  shipped: "Enviado",
-  delivered: "Entregue",
-  cancelled: "Cancelado",
-};
-
-const SELECT = `*, customer:profiles(full_name, phone, email), items:order_items(id, quantity, unit_price, product:products(id, title, size, images:product_images(url, is_primary, sort_order)))`;
-
-function whatsappLink(phone: string | null): string | null {
-  if (!phone) return null;
-
-  const digits = phone.replace(/\D/g, "");
-  if (digits.length < 10) return null;
-
-  return `https://wa.me/${digits.startsWith("55") ? digits : `55${digits}`}`;
-}
-
-export default function AdminPedidosPage() {
-  const [orders, setOrders] = useState<AdminOrder[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<Filter>("all");
-  const [savingId, setSavingId] = useState<string | null>(null);
-  const [error, setError] = useState("");
-  const [message, setMessage] = useState("");
-
-  async function loadOrders() {
-    setLoading(true);
-    setError("");
-
-    const supabase = createClient();
-
-    const { data, error: queryError } = await supabase
-      .from("orders")
-      .select(SELECT)
-      .order("created_at", { ascending: false });
-
-    if (queryError) {
-      setError(queryError.message);
-    } else {
-      setOrders((data ?? []) as unknown as AdminOrder[]);
-    }
-
-    setLoading(false);
-  }
+export default function MeusPedidosPage() {
+  const [auth, setAuth] = useState<AuthState>("checking");
+  const [orders, setOrders] = useState<OrderRow[]>([]);
+  const [loadingOrders, setLoadingOrders] = useState(true);
 
   useEffect(() => {
-    // Abre já filtrado quando vem do resumo (ex.: /admin/pedidos?status=paid)
-    const fromUrl = new URLSearchParams(window.location.search).get("status");
+    async function start() {
+      const supabase = createClient();
 
-    if (fromUrl && STATUS_ORDER.includes(fromUrl as OrderStatus)) {
-      setFilter(fromUrl as OrderStatus);
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        setAuth("guest");
+        setLoadingOrders(false);
+        return;
+      }
+
+      setAuth("ready");
+
+      // Traz só os pedidos desta conta (o banco também garante isso via RLS)
+      const { data, error } = await supabase
+        .from("orders")
+        .select(ORDER_LIST_SELECT)
+        .eq("customer_id", user.id)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Erro ao carregar pedidos:", error);
+        setOrders([]);
+      } else {
+        setOrders((data ?? []) as unknown as OrderRow[]);
+      }
+
+      setLoadingOrders(false);
     }
 
-    loadOrders();
+    start();
   }, []);
 
-  async function changeStatus(order: AdminOrder, newStatus: OrderStatus) {
-    if (newStatus === order.status) return;
-
-    if (newStatus === "cancelled") {
-      const confirmed = window.confirm(
-        `Cancelar o pedido #${orderNumber(order.id)}?\n\nAtenção: por enquanto o cancelamento só muda o status. Se precisar, volte a peça ao estoque em Produtos.`
-      );
-
-      if (!confirmed) return;
-    }
-
-    setError("");
-    setMessage("");
-    setSavingId(order.id);
-
-    const previous = order.status;
-
-    setOrders((current) =>
-      current.map((o) => (o.id === order.id ? { ...o, status: newStatus } : o))
-    );
-
-    const supabase = createClient();
-
-    const { error: updateError } = await supabase
-      .from("orders")
-      .update({ status: newStatus })
-      .eq("id", order.id);
-
-    if (updateError) {
-      setOrders((current) =>
-        current.map((o) => (o.id === order.id ? { ...o, status: previous } : o))
-      );
-      setError(`Não foi possível mudar o status: ${updateError.message}`);
-    } else {
-      setMessage(
-        `Pedido #${orderNumber(order.id)} agora está: ${ADMIN_LABEL[newStatus]}.`
-      );
-    }
-
-    setSavingId(null);
-  }
-
-  const counts = STATUS_ORDER.reduce(
-    (acc, s) => ({ ...acc, [s]: orders.filter((o) => o.status === s).length }),
-    {} as Record<OrderStatus, number>
-  );
-
-  const visible =
-    filter === "all" ? orders : orders.filter((o) => o.status === filter);
+  const isLoading = auth === "checking" || (auth === "ready" && loadingOrders);
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-6">
-      <div className="mb-5 flex items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-text">Pedidos</h1>
-          <p className="text-sm text-text-muted">
-            Acompanhe e atualize o andamento de cada pedido.
+    <div className="min-h-screen bg-background">
+      <Header />
+
+      <main className="mx-auto w-full max-w-2xl px-4 py-8">
+        <div className="mb-8">
+          <p className="mb-2 text-sm font-medium uppercase tracking-wider text-primary">
+            MIF BRECHO
+          </p>
+
+          <h1 className="text-3xl font-bold text-text md:text-4xl">
+            Meus pedidos
+          </h1>
+
+          <p className="mt-2 text-text-muted">
+            Acompanhe aqui o andamento das suas compras.
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={loadOrders}
-          disabled={loading}
-          className="rounded-lg border border-primary-light bg-white px-3 py-2 text-sm text-text hover:bg-secondary disabled:opacity-60"
-        >
-          Atualizar
-        </button>
-      </div>
+        {isLoading ? (
+          <div className="py-20 text-center text-text-muted">
+            <p>Carregando pedidos...</p>
+          </div>
+        ) : auth === "guest" ? (
+          <div className="rounded-2xl border border-dashed border-primary-light bg-white p-10 text-center">
+            <p className="text-text-muted">
+              Entre na sua conta para ver seus pedidos.
+            </p>
 
-      {/* Filtros */}
-      <div className="mb-5 flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => setFilter("all")}
-          className={`rounded-full px-3 py-1.5 text-xs font-medium ${
-            filter === "all"
-              ? "bg-primary text-white"
-              : "bg-white text-text-muted border border-primary-light"
-          }`}
-        >
-          Todos ({orders.length})
-        </button>
-
-        {STATUS_ORDER.map((s) => (
-          <button
-            key={s}
-            type="button"
-            onClick={() => setFilter(s)}
-            className={`rounded-full px-3 py-1.5 text-xs font-medium ${
-              filter === s
-                ? "bg-primary text-white"
-                : "bg-white text-text-muted border border-primary-light"
-            }`}
-          >
-            {ADMIN_LABEL[s]} ({counts[s] ?? 0})
-          </button>
-        ))}
-      </div>
-
-      {message && (
-        <div className="mb-4 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
-          {message}
-        </div>
-      )}
-
-      {error && (
-        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-        </div>
-      )}
-
-      {loading ? (
-        <div className="rounded-2xl bg-white p-8 text-center text-text-muted shadow-sm">
-          Carregando pedidos...
-        </div>
-      ) : visible.length === 0 ? (
-        <div className="rounded-2xl bg-white p-8 text-center text-text-muted shadow-sm">
-          {orders.length === 0
-            ? "Nenhum pedido ainda. Quando uma cliente comprar, ele aparece aqui."
-            : "Nenhum pedido neste filtro."}
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {visible.map((order) => {
-            const info = statusInfo(order.status);
-            const customer = order.customer;
-            const wa = whatsappLink(customer?.phone ?? null);
-
-            const address = [
-              [order.shipping_street, order.shipping_number]
-                .filter(Boolean)
-                .join(", "),
-              order.shipping_complement,
-              order.shipping_neighborhood,
-              [order.shipping_city, order.shipping_state]
-                .filter(Boolean)
-                .join(" - "),
-              order.shipping_zip_code,
-            ]
-              .filter(Boolean)
-              .join(" · ");
-
-            return (
-              <article
-                key={order.id}
-                className="rounded-2xl border border-primary-light bg-white p-5 shadow-sm"
+            <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+              <Link
+                href="/login?next=/pedidos"
+                className="inline-block rounded-full bg-primary px-6 py-3 font-medium text-white transition hover:opacity-90"
               >
-                <div className="mb-3 flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="font-semibold text-text">
-                      {customer?.full_name || customer?.email || "Cliente"}
-                    </p>
+                Entrar
+              </Link>
 
-                    {customer?.email && customer.full_name && (
-                      <p className="text-xs text-text-muted">{customer.email}</p>
-                    )}
+              <Link
+                href="/cadastro"
+                className="inline-block rounded-full border border-primary px-6 py-3 font-medium text-primary transition hover:bg-primary/5"
+              >
+                Criar conta
+              </Link>
+            </div>
+          </div>
+        ) : orders.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-primary-light bg-white p-10 text-center">
+            <p className="text-text-muted">Você ainda não fez nenhum pedido.</p>
 
-                    {customer?.phone && (
-                      <p className="text-xs text-text-muted">
-                        {customer.phone}
-                        {wa && (
-                          <>
-                            {" · "}
-                            <a
-                              href={wa}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-primary underline"
-                            >
-                              WhatsApp
-                            </a>
-                          </>
-                        )}
+            <Link
+              href="/produtos"
+              className="mt-5 inline-block rounded-full bg-primary px-6 py-3 font-medium text-white transition hover:opacity-90"
+            >
+              Ver peças
+            </Link>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {orders.map((order) => {
+              const info = statusInfo(order.status);
+              const items = order.items ?? [];
+              const preview = items.slice(0, 3);
+              const extra = items.length - preview.length;
+
+              return (
+                <Link
+                  key={order.id}
+                  href={`/pedidos/${order.id}`}
+                  className="block rounded-2xl border border-primary-light/60 bg-white p-5 shadow-sm transition hover:border-primary"
+                >
+                  <div className="mb-3 flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-text">
+                        Pedido #{orderNumber(order.id)}
                       </p>
-                    )}
+                      <p className="text-xs text-text-muted">
+                        {formatOrderDate(order.created_at)}
+                      </p>
+                    </div>
 
-                    <p className="mt-0.5 text-xs text-text-muted">
-                      Pedido #{orderNumber(order.id)} ·{" "}
-                      {formatOrderDate(order.created_at)}
-                    </p>
+                    <span
+                      className={`whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium ${info.badge}`}
+                    >
+                      {info.label}
+                    </span>
                   </div>
 
-                  <span
-                    className={`whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium ${info.badge}`}
-                  >
-                    {info.label}
-                  </span>
-                </div>
-
-                <div className="mb-3 space-y-2">
-                  {(order.items ?? []).map((item) => (
-                    <div key={item.id} className="flex items-center gap-3">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={itemImageUrl(item.product)}
-                        alt={item.product?.title ?? "Peça"}
-                        className="h-14 w-11 flex-shrink-0 rounded-lg bg-secondary object-cover"
-                      />
-                      <div className="min-w-0 flex-1">
-                        <p className="line-clamp-1 text-sm text-text">
-                          {item.product?.title ?? "Peça"}
-                          {item.product?.size ? ` (${item.product.size})` : ""}
-                        </p>
-                        <p className="text-xs text-text-muted">
-                          {item.quantity} × {formatPrice(item.unit_price)}
-                        </p>
+                  <div className="mb-3 flex items-center gap-2">
+                    {preview.map((item) => (
+                      <div
+                        key={item.id}
+                        className="relative h-14 w-11 flex-shrink-0 overflow-hidden rounded-lg bg-secondary"
+                      >
+                        <Image
+                          src={itemImageUrl(item.product)}
+                          alt={item.product?.title ?? "Peça"}
+                          fill
+                          className="object-cover"
+                          unoptimized
+                        />
                       </div>
-                    </div>
-                  ))}
-                </div>
-
-                {address && (
-                  <p className="mb-3 text-sm text-text-muted">📍 {address}</p>
-                )}
-
-                {order.notes && (
-                  <p className="mb-3 rounded-lg bg-secondary px-3 py-2 text-xs text-text-muted">
-                    Obs.: {order.notes}
-                  </p>
-                )}
-
-                <div className="flex items-center justify-between gap-3">
-                  <p className="font-bold text-primary">
-                    {formatPrice(order.total_amount)}
-                  </p>
-
-                  <select
-                    value={order.status}
-                    disabled={savingId === order.id}
-                    onChange={(e) =>
-                      changeStatus(order, e.target.value as OrderStatus)
-                    }
-                    className="rounded-lg border border-primary-light bg-white px-2 py-1.5 text-xs disabled:opacity-60"
-                  >
-                    {STATUS_ORDER.map((s) => (
-                      <option key={s} value={s}>
-                        {ADMIN_LABEL[s]}
-                      </option>
                     ))}
-                  </select>
-                </div>
-              </article>
-            );
-          })}
-        </div>
-      )}
 
+                    {extra > 0 && (
+                      <span className="text-xs text-text-muted">
+                        +{extra} peça{extra > 1 ? "s" : ""}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between border-t border-primary-light pt-3">
+                    <span className="text-sm text-text-muted">
+                      {items.length} peça{items.length !== 1 ? "s" : ""}
+                    </span>
+                    <span className="text-lg font-bold text-primary">
+                      {formatPrice(order.total_amount)}
+                    </span>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        )}
+      </main>
     </div>
   );
 }
