@@ -28,7 +28,10 @@ function Footer() {
             </p>
             <p className="mt-3 flex items-center gap-1.5 text-sm text-primary-light">
               <MapPin className="h-4 w-4" />
-              {STORE.city}
+              {STORE.address}
+            </p>
+            <p className="mt-3 text-xs text-primary-light/80">
+              {STORE.legalName} · CPF {STORE.cpf}
             </p>
           </div>
 
