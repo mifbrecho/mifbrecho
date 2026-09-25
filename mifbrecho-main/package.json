@@ -1,0 +1,15 @@
+{
+  "name": "mifre-brecho",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "web": "npm run dev --workspace=@mifre/web",
+    "mobile": "npm run start --workspace=@mifre/mobile",
+    "build:web": "npm run build --workspace=@mifre/web"
+  },
+  "description": "Mifre Brechó — App completo (web + mobile) com tema rosa e pagamento Pix"
+}
