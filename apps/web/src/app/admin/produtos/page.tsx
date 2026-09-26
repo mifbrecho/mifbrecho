@@ -95,6 +95,76 @@ function sortImages(images: ProductImage[] = []): ProductImage[] {
   });
 }
 
+/**
+ * Reduz o tamanho de uma imagem redesenhando ela num canvas menor e
+ * reexportando como JPEG. Usado quando a foto vem maior que o limite
+ * permitido (ex.: fotos de câmera de celular com 8-15 MB).
+ */
+async function compressImage(
+  file: File,
+  maxDimension: number,
+  quality: number
+): Promise<File> {
+  const bitmap = await createImageBitmap(file);
+
+  const scale = Math.min(1, maxDimension / Math.max(bitmap.width, bitmap.height));
+  const width = Math.max(1, Math.round(bitmap.width * scale));
+  const height = Math.max(1, Math.round(bitmap.height * scale));
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return file;
+
+  ctx.drawImage(bitmap, 0, 0, width, height);
+  bitmap.close?.();
+
+  const blob = await new Promise<Blob | null>((resolve) =>
+    canvas.toBlob(resolve, "image/jpeg", quality)
+  );
+
+  if (!blob) return file;
+
+  const newName = file.name.replace(/\.[^./]+$/, "") + ".jpg";
+  return new File([blob], newName, { type: "image/jpeg" });
+}
+
+/**
+ * Garante que o arquivo fique dentro do limite de tamanho, compactando
+ * em etapas cada vez mais agressivas. Retorna null se nem assim couber.
+ */
+async function ensureUnderLimit(
+  file: File,
+  maxBytes: number
+): Promise<File | null> {
+  if (file.size <= maxBytes) return file;
+
+  const attempts = [
+    { maxDimension: 1600, quality: 0.82 },
+    { maxDimension: 1280, quality: 0.75 },
+    { maxDimension: 1024, quality: 0.65 },
+    { maxDimension: 800, quality: 0.6 },
+  ];
+
+  for (const attempt of attempts) {
+    try {
+      const compressed = await compressImage(
+        file,
+        attempt.maxDimension,
+        attempt.quality
+      );
+
+      if (compressed.size <= maxBytes) return compressed;
+    } catch {
+      // se essa tentativa falhar (formato incomum, etc.), passa pra próxima
+    }
+  }
+
+  return null;
+}
+
 export default function AdminProductsPage() {
   const supabase = useMemo(
     () =>
@@ -221,12 +291,12 @@ export default function AdminProductsPage() {
 
   // ---------------------------------------------------------------- fotos
 
-  function addFiles(fileList: FileList | null) {
+  async function addFiles(fileList: FileList | null) {
     if (!fileList) return;
 
     setError("");
 
-    const accepted: File[] = [];
+    const validTypeFiles: File[] = [];
 
     for (const file of Array.from(fileList)) {
       if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
@@ -234,13 +304,31 @@ export default function AdminProductsPage() {
         continue;
       }
 
-      if (file.size > MAX_PHOTO_MB * 1024 * 1024) {
-        setError(`"${file.name}" tem mais de ${MAX_PHOTO_MB} MB.`);
+      validTypeFiles.push(file);
+    }
+
+    if (validTypeFiles.length === 0) return;
+
+    setImageBusy(true);
+
+    const maxBytes = MAX_PHOTO_MB * 1024 * 1024;
+    const accepted: File[] = [];
+
+    for (const file of validTypeFiles) {
+      const ready =
+        file.size <= maxBytes ? file : await ensureUnderLimit(file, maxBytes);
+
+      if (!ready) {
+        setError(
+          `"${file.name}" continua maior que ${MAX_PHOTO_MB} MB mesmo depois de compactada. Tente uma foto com resolução menor.`
+        );
         continue;
       }
 
-      accepted.push(file);
+      accepted.push(ready);
     }
+
+    setImageBusy(false);
 
     setNewFiles((current) => {
       const room = MAX_PHOTOS - existingImages.length - current.length;
@@ -934,11 +1022,13 @@ export default function AdminProductsPage() {
               />
 
               <p className="mt-2 text-xs text-gray-500">
-                JPG, PNG ou WEBP, até {MAX_PHOTO_MB} MB cada. Você pode escolher
-                várias fotos. A foto principal aparece no catálogo.
+                JPG, PNG ou WEBP. Fotos maiores que {MAX_PHOTO_MB} MB são
+                compactadas automaticamente. Você pode escolher várias fotos.
+                A foto principal aparece no catálogo.
                 {editingId
                   ? " Para trocar uma foto, adicione a nova e remova a antiga."
                   : ""}
+                {imageBusy ? " Compactando foto(s)..." : ""}
               </p>
             </div>
 
